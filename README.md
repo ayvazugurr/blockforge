@@ -1,8 +1,20 @@
-# BlockForge v0.8
+# BlockForge v0.9
 
 A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
-## What's new in v0.8
+## What's new in v0.9
+
+- 30-level campaign with escalating score, line and terrain objectives
+- Limited moves, one-to-three-star ratings and persistent level progress
+- Icy cells that break when covered and locked cells cleared through lines or powers
+- Dedicated level-selection, objective HUD and result screens
+- Four-step first-run tutorial with replay control in Settings
+- Ambient, Focus and Arcade procedural soundtracks
+- Low, Normal and High visual-effect intensity
+- Color-blind mode with patterns, symbols and non-color placement feedback
+- Undo snapshots hardened for campaign terrain and progression rewards
+
+## Included from v0.8
 
 - Level Road screen with visible milestones and upcoming unlocks
 - Five player ranks from Apprentice to Forge Legend
