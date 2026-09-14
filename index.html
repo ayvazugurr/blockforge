@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#07111f">
+  <title>BlockForge</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="midnight" data-skin="forge">
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <button id="restartBtn" class="icon-btn" type="button" title="Restart game" aria-label="Restart game">↻</button>
+      <button id="musicBtn" class="icon-btn" type="button" title="Toggle music" aria-label="Toggle music">♫</button>
+      <button id="shopBtn" class="icon-btn shop-btn" type="button" title="Open shop" aria-label="Open shop">◆</button>
+    </div>
+    <div class="brand">
+      <span class="brand-mark">BF</span>
+      <div>
+        <h1>BLOCKFORGE</h1>
+        <small>BUILD • CLEAR • EARN</small>
+      </div>
+    </div>
+    <div class="wallet" aria-label="Coin balance"><span class="coin">●</span><b id="coinCount">0</b></div>
+  </header>
+
+  <main class="game-shell">
+    <section class="stats" aria-label="Game statistics">
+      <div><span>SCORE</span><strong id="score">0</strong></div>
+      <div class="combo-stat"><span>COMBO</span><strong id="combo">×0</strong></div>
+      <div><span>BEST</span><strong id="best">0</strong></div>
+    </section>
+
+    <section class="board-wrap">
+      <div id="boardGlow" class="board-glow"></div>
+      <div id="board" class="board" role="grid" aria-label="8 by 8 game board"></div>
+      <div id="fxLayer" class="fx-layer" aria-hidden="true"></div>
+    </section>
+
+    <p id="statusText" class="status">Drag a block onto the board</p>
+    <section id="tray" class="tray" aria-label="Available blocks"></section>
+
+    <section class="audio-card" aria-label="Audio controls">
+      <label>
+        <span>♫ MUSIC</span>
+        <input id="musicVolume" type="range" min="0" max="100" value="32">
+        <output id="musicValue">32%</output>
+      </label>
+      <label>
+        <span>✦ EFFECTS</span>
+        <input id="sfxVolume" type="range" min="0" max="100" value="72">
+        <output id="sfxValue">72%</output>
+      </label>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="gameOverModal" class="modal" aria-hidden="true">
+    <div class="modal-card game-over-card">
+      <span class="eyebrow">THE FORGE IS FULL</span>
+      <h2>GAME OVER</h2>
+      <div class="final-score"><span>FINAL SCORE</span><strong id="finalScore">0</strong></div>
+      <p id="newBestText"></p>
+      <button id="playAgainBtn" class="primary-btn" type="button">PLAY AGAIN</button>
+      <button id="gameOverShopBtn" class="secondary-btn" type="button">OPEN SHOP</button>
+    </div>
+  </div>
+
+  <div id="shopModal" class="modal" aria-hidden="true">
+    <div class="modal-card shop-card">
+      <header class="shop-header">
+        <div>
+          <span class="eyebrow">CUSTOMIZE THE FORGE</span>
+          <h2>SHOP</h2>
+        </div>
+        <div class="shop-wallet"><span class="coin">●</span><b id="shopCoinCount">0</b></div>
+        <button id="closeShopBtn" class="close-btn" type="button" aria-label="Close shop">×</button>
+      </header>
+      <nav id="shopTabs" class="shop-tabs" aria-label="Shop categories">
+        <button type="button" class="active" data-tab="skins">BLOCKS</button>
+        <button type="button" data-tab="palettes">COLORS</button>
+        <button type="button" data-tab="themes">THEMES</button>
+        <button type="button" data-tab="packs">SHAPES</button>
+      </nav>
+      <div id="shopGrid" class="shop-grid"></div>
+      <p class="shop-note">Coins are earned by clearing rows and columns.</p>
+    </div>
+  </div>
+
+  <template id="shopItemTemplate">
+    <article class="shop-item">
+      <div class="item-preview"></div>
+      <div class="item-copy"><h3></h3><p></p></div>
+      <button class="buy-btn" type="button"></button>
+    </article>
+  </template>
+
+  <script src="game.js"></script>
+</body>
+</html>
