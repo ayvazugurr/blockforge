@@ -47,6 +47,18 @@ const SPECIAL_SHAPES = [
   {id:"mystery",cells:[[0,0]],tier:1,special:"mystery"}
 ];
 
+const SPECIAL_UNLOCKS = {
+  bomb:1,golden:3,"laser-h":5,"laser-v":5,rainbow:8,mystery:12
+};
+
+const PLAYER_TITLES = [
+  {level:1,name:"Apprentice"},
+  {level:5,name:"Iron Smith"},
+  {level:10,name:"Steel Shaper"},
+  {level:15,name:"Master Forger"},
+  {level:25,name:"Forge Legend"}
+];
+
 const DAILY_REWARDS = [
   {coins:10,label:"● 10",icon:"●"},
   {coins:15,label:"● 15",icon:"●"},
@@ -85,12 +97,16 @@ const SHOP = {
   palettes:[
     {id:"ocean",name:"Ocean",desc:"Cool blue forge energy.",price:0,preview:["#6ed9ff","#3478ff"]},
     {id:"sunset",name:"Sunset",desc:"Warm coral and amber.",price:65,preview:["#ffcf68","#ff557e"]},
-    {id:"neon",name:"Neon",desc:"Electric lime and violet.",price:105,preview:["#b7ff42","#9747ff"]}
+    {id:"neon",name:"Neon",desc:"Electric lime and violet.",price:105,preview:["#b7ff42","#9747ff"]},
+    {id:"frost",name:"Frost",desc:"Earned by reaching Level 4.",price:0,unlockLevel:4,preview:["#e7fbff","#68a9ff"]},
+    {id:"magma",name:"Magma",desc:"Earned by reaching Level 10.",price:0,unlockLevel:10,preview:["#ffe06d","#ff3b22"]}
   ],
   themes:[
     {id:"midnight",name:"Midnight",desc:"The original deep-space forge.",price:0,preview:["#12243b","#050b14"]},
     {id:"forest",name:"Forest",desc:"Calm emerald workshop.",price:90,preview:["#174c3d","#04100e"]},
-    {id:"aurora",name:"Aurora",desc:"Violet sky and blue haze.",price:135,preview:["#3c3971","#100a1c"]}
+    {id:"aurora",name:"Aurora",desc:"Violet sky and blue haze.",price:135,preview:["#3c3971","#100a1c"]},
+    {id:"dawn",name:"Dawn Forge",desc:"Earned by reaching Level 7.",price:0,unlockLevel:7,preview:["#48294f","#ff9f68"]},
+    {id:"void",name:"Void Core",desc:"Earned by reaching Level 15.",price:0,unlockLevel:15,preview:["#11101e","#622cff"]}
   ],
   packs:[
     {id:"extended",name:"Extended Set",desc:"5 new tactical shapes.",price:75,preview:["#52e6c1","#2a78ff"]},
@@ -101,21 +117,29 @@ const SHOP = {
 const PALETTES = {
   ocean:{one:"#6ed9ff",two:"#3478ff",glow:"rgba(62,170,255,.52)"},
   sunset:{one:"#ffd56c",two:"#ff557e",glow:"rgba(255,102,111,.5)"},
-  neon:{one:"#c5ff4a",two:"#8b46ff",glow:"rgba(176,91,255,.5)"}
+  neon:{one:"#c5ff4a",two:"#8b46ff",glow:"rgba(176,91,255,.5)"},
+  frost:{one:"#effdff",two:"#5598ff",glow:"rgba(117,196,255,.6)"},
+  magma:{one:"#ffe66d",two:"#ff3b22",glow:"rgba(255,82,35,.58)"}
 };
 
 const MISSION_DEFS = [
-  {type:"placements",label:"Place 12 blocks",icon:"▦",target:12,coins:8,xp:30},
-  {type:"lines",label:"Clear 4 lines",icon:"✦",target:4,coins:12,xp:45},
-  {type:"scoreEarned",label:"Forge 1,200 score",icon:"◆",target:1200,coins:10,xp:40},
-  {type:"multiclears",label:"Make a double clear",icon:"×2",target:1,coins:14,xp:55},
-  {type:"bombs",label:"Detonate a Bomb Block",icon:"●",target:1,coins:10,xp:35},
-  {type:"lines",label:"Clear 7 lines",icon:"✧",target:7,coins:18,xp:65}
+  {type:"placements",label:"Place 12 blocks",icon:"▦",target:12,coins:8,xp:30,minLevel:1},
+  {type:"lines",label:"Clear 4 lines",icon:"✦",target:4,coins:12,xp:45,minLevel:1},
+  {type:"scoreEarned",label:"Forge 1,200 score",icon:"◆",target:1200,coins:10,xp:40,minLevel:1},
+  {type:"games",label:"Finish 2 games",icon:"▶",target:2,coins:12,xp:40,minLevel:2},
+  {type:"specials",label:"Use 3 special blocks",icon:"◆",target:3,coins:15,xp:50,minLevel:3},
+  {type:"timedGames",label:"Finish a Timed game",icon:"◷",target:1,coins:16,xp:55,minLevel:4},
+  {type:"powersUsed",label:"Use 3 power-ups",icon:"⚡",target:3,coins:18,xp:60,minLevel:5},
+  {type:"multiclears",label:"Make a double clear",icon:"×2",target:1,coins:18,xp:65,minLevel:6},
+  {type:"bombs",label:"Detonate 2 Bomb Blocks",icon:"●",target:2,coins:20,xp:70,minLevel:8},
+  {type:"lines",label:"Clear 10 lines",icon:"✧",target:10,coins:24,xp:85,minLevel:10},
+  {type:"scoreEarned",label:"Forge 5,000 score",icon:"♛",target:5000,coins:30,xp:100,minLevel:15}
 ];
 
 const defaults = {
   coins:0,best:0,musicOn:true,musicVolume:.32,sfxVolume:.72,vibration:true,
   level:1,xp:0,missionCycle:1,missions:[],
+  progression:{claimedLevels:[]},
   modeBests:{classic:0,timed:0,zen:0},
   powers:{hammer:1,shuffle:1,undo:1,secondChance:1},
   daily:{lastClaim:"",streak:0,lastSeen:""},
@@ -149,6 +173,11 @@ function loadProfile(){
         items:Array.isArray(stored.dailyMissions?.items)?stored.dailyMissions.items:[]
       },
       achievements:{...defaults.achievements,...(stored.achievements||{})},
+      progression:{
+        claimedLevels:Array.isArray(stored.progression?.claimedLevels)
+          ?stored.progression.claimedLevels
+          :Array.from({length:Math.max(0,Number(stored.level||1)-1)},(_,index)=>index+2)
+      },
       modeBests:{
         classic:Number(stored.modeBests?.classic??stored.best??0),
         timed:Number(stored.modeBests?.timed??0),
@@ -224,6 +253,7 @@ function updateHud(){
   shopCoinEl.textContent = profile.coins;
   const needed=xpNeeded();
   $("#levelValue").textContent=profile.level;
+  $("#playerTitle").textContent=playerTitle(profile.level).toUpperCase();
   $("#xpText").textContent=profile.xp+" / "+needed+" XP";
   $("#xpFill").style.width=Math.min(100,profile.xp/needed*100)+"%";
 }
@@ -315,7 +345,8 @@ function generateTray(){
   }
   const specialChance=Math.min(.24,.105+profile.level*.009);
   if(Math.random()<specialChance){
-    const special=SPECIAL_SHAPES[Math.floor(Math.random()*SPECIAL_SHAPES.length)];
+    const unlockedSpecials=SPECIAL_SHAPES.filter(shape=>profile.level>=SPECIAL_UNLOCKS[shape.special]);
+    const special=unlockedSpecials[Math.floor(Math.random()*unlockedSpecials.length)];
     picked[Math.floor(Math.random()*picked.length)]=special;
   }
   tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
@@ -627,9 +658,10 @@ function clearLines(lines){
 
 function ensureMissions(){
   if(profile.missions.length) return;
-  const start=(profile.missionCycle-1)%MISSION_DEFS.length;
+  const pool=MISSION_DEFS.filter(def=>profile.level>=def.minLevel);
+  const start=(profile.missionCycle-1)%pool.length;
   profile.missions=Array.from({length:3},(_,index)=>{
-    const def=MISSION_DEFS[(start+index*2)%MISSION_DEFS.length];
+    const def=pool[(start+index*2)%pool.length];
     return {
       ...def,start:Number(profile.stats[def.type]||0),done:false
     };
@@ -665,22 +697,119 @@ function renderMissions(){
   $("#newMissionsBtn").hidden=!profile.missions.every(mission=>mission.done);
 }
 
+function playerTitle(level=profile.level){
+  let title=PLAYER_TITLES[0].name;
+  PLAYER_TITLES.forEach(rank=>{if(level>=rank.level) title=rank.name});
+  return title;
+}
+
+function syncLevelUnlocks(){
+  const unlocked=[];
+  ["palettes","themes"].forEach(category=>{
+    SHOP[category].forEach(item=>{
+      if(item.unlockLevel&&profile.level>=item.unlockLevel&&!profile.owned[category].includes(item.id)){
+        profile.owned[category].push(item.id);
+        unlocked.push(item.name);
+      }
+    });
+  });
+  return unlocked;
+}
+
+function levelUnlockLabels(level){
+  const labels=[];
+  Object.entries(SPECIAL_UNLOCKS).forEach(([special,required])=>{
+    if(required===level) labels.push(special.replace("-"," ").toUpperCase()+" BLOCK");
+  });
+  ["palettes","themes"].forEach(category=>{
+    SHOP[category].forEach(item=>{if(item.unlockLevel===level) labels.push(item.name.toUpperCase())});
+  });
+  const rank=PLAYER_TITLES.find(item=>item.level===level);
+  if(rank&&level>1) labels.push(rank.name.toUpperCase()+" TITLE");
+  return labels;
+}
+
+function grantLevelReward(level){
+  if(profile.progression.claimedLevels.includes(level)) return {coins:0,chest:false,power:null};
+  profile.progression.claimedLevels.push(level);
+  let coins=15;
+  let power=null;
+  const chest=level%5===0;
+  if(chest){
+    coins+=25+level*2;
+    const powers=["hammer","shuffle","undo","secondChance"];
+    power=powers[(level/5-1)%powers.length];
+    profile.powers[power]++;
+  }
+  profile.coins+=coins;
+  return {coins,chest,power};
+}
+
+function renderLevelRoad(){
+  syncLevelUnlocks();
+  $("#roadTitle").textContent=playerTitle(profile.level).toUpperCase();
+  const futureUnlocks=[];
+  for(let level=profile.level+1;level<=30;level++){
+    const labels=levelUnlockLabels(level);
+    if(labels.length){futureUnlocks.push({level,label:labels[0]});break}
+  }
+  $("#nextUnlockText").textContent=futureUnlocks.length
+    ?"Next: Level "+futureUnlocks[0].level+" • "+futureUnlocks[0].label
+    :"All major rewards unlocked — keep forging!";
+  const list=$("#levelRoadList");
+  list.innerHTML="";
+  const maxLevel=Math.min(50,Math.max(20,Math.ceil((profile.level+5)/5)*5));
+  for(let level=1;level<=maxLevel;level++){
+    const unlocks=levelUnlockLabels(level);
+    const chest=level>1&&level%5===0;
+    const node=document.createElement("article");
+    node.className="level-node"+(level<profile.level?" completed":"")+(level===profile.level?" current":"")+(level>profile.level?" locked":"")+(chest?" chest":"");
+    const reward=level===1?"Journey begins":chest?"15 coins + bonus chest + booster":"15 coins";
+    node.innerHTML=`
+      <span class="level-orb">${level<profile.level?"✓":level}</span>
+      <div><strong>LEVEL ${level}${chest?" • CHEST":""}</strong><small>${reward}</small>
+      ${unlocks.length?`<b>${unlocks.join(" • ")}</b>`:""}</div>
+      <em>${level===profile.level?"CURRENT":level<profile.level?"CLAIMED":"LOCKED"}</em>`;
+    list.appendChild(node);
+  }
+}
+
+function openLevelRoad(){
+  renderLevelRoad();
+  $("#levelRoadModal").classList.add("open");
+  $("#levelRoadModal").setAttribute("aria-hidden","false");
+}
+
+function closeLevelRoad(){
+  $("#levelRoadModal").classList.remove("open");
+  $("#levelRoadModal").setAttribute("aria-hidden","true");
+  lastTimerTick=performance.now();
+}
+
 function addXP(amount){
   profile.xp+=amount;
-  let levels=0;
+  const rewards=[];
+  const unlocks=[];
   while(profile.xp>=xpNeeded()){
     profile.xp-=xpNeeded();
     profile.level++;
-    profile.coins+=15;
-    levels++;
+    rewards.push(grantLevelReward(profile.level));
+    unlocks.push(...syncLevelUnlocks());
   }
-  if(levels){
-    showComboCallout("LEVEL "+profile.level);
-    showToast("Level up! +15 coins");
-    playSfx("level");
+  if(rewards.length){
+    const coins=rewards.reduce((sum,reward)=>sum+reward.coins,0);
+    const chest=rewards.some(reward=>reward.chest);
+    showComboCallout(chest?"BONUS CHEST!":"LEVEL "+profile.level);
+    showToast("Level up! +"+coins+" coins"+(chest?" + booster":""));
+    playSfx(chest?"daily":"level");
+    if(unlocks.length) setTimeout(()=>showToast(unlocks.join(", ")+" unlocked"),900);
+    profile.missions=[];
+    ensureMissions();
   }
   saveProfile();
   updateHud();
+  renderMissions();
+  renderLevelRoad();
 }
 
 function checkMissions(){
@@ -689,21 +818,18 @@ function checkMissions(){
     if(!mission.done&&missionProgress(mission)>=mission.target){
       mission.done=true;
       profile.coins+=mission.coins;
-      profile.xp+=mission.xp;
       completed.push(mission);
     }
   });
   if(completed.length){
+    const earnedXP=completed.reduce((sum,mission)=>sum+mission.xp,0);
+    addXP(earnedXP);
     playSfx("mission");
     showToast("Mission complete! Rewards claimed");
-    while(profile.xp>=xpNeeded()){
-      profile.xp-=xpNeeded();
-      profile.level++;
-      profile.coins+=15;
-    }
+  }else{
+    saveProfile();
+    updateHud();
   }
-  saveProfile();
-  updateHud();
   renderMissions();
 }
 
@@ -1298,7 +1424,7 @@ function restartGame(){
 }
 
 function isBlockingOverlayOpen(){
-  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal","#dailyRewardModal","#achievementsModal"]
+  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal","#dailyRewardModal","#achievementsModal","#levelRoadModal"]
     .some(selector=>$(selector).classList.contains("open"));
 }
 
@@ -1453,6 +1579,17 @@ function setupV07(){
   });
   $("#achievementsModal").addEventListener("pointerdown",event=>{
     if(event.target===$("#achievementsModal")) closeAchievements();
+  });
+  $("#levelRoadBtn").addEventListener("click",openLevelRoad);
+  $("#closeLevelRoadBtn").addEventListener("click",closeLevelRoad);
+  $(".level-card").addEventListener("click",openLevelRoad);
+  $(".level-card").setAttribute("role","button");
+  $(".level-card").setAttribute("tabindex","0");
+  $(".level-card").addEventListener("keydown",event=>{
+    if(event.key==="Enter"||event.key===" "){event.preventDefault();openLevelRoad()}
+  });
+  $("#levelRoadModal").addEventListener("pointerdown",event=>{
+    if(event.target===$("#levelRoadModal")) closeLevelRoad();
   });
 }
 
@@ -1648,8 +1785,13 @@ function renderShop(){
     preview.addEventListener("click",()=>previewShopItem(activeShopTab,item));
     const button=node.querySelector(".buy-btn");
     const owned=profile.owned[activeShopTab].includes(item.id);
+    const levelLocked=Boolean(item.unlockLevel&&profile.level<item.unlockLevel);
     const selected=activeShopTab!=="packs"&&profile.selected[activeShopTab.slice(0,-1)]===item.id;
-    if(selected){
+    if(levelLocked){
+      button.textContent="LEVEL "+item.unlockLevel;
+      button.className="buy-btn level-locked";
+      button.disabled=true;
+    }else if(selected){
       button.textContent="EQUIPPED";button.className="buy-btn selected";
     }else if(owned){
       button.textContent=activeShopTab==="packs"?"OWNED":"EQUIP";button.className="buy-btn owned";
@@ -1685,6 +1827,11 @@ function previewShopItem(category,item){
 
 function shopAction(category,item){
   unlockAudio();
+  if(item.unlockLevel&&profile.level<item.unlockLevel){
+    showToast("Reach Level "+item.unlockLevel+" to unlock");
+    return;
+  }
+  syncLevelUnlocks();
   const owned=profile.owned[category].includes(item.id);
   if(!owned){
     if(profile.coins<item.price){showToast("Not enough coins");return}
@@ -1729,6 +1876,7 @@ function setupShop(){
 }
 
 function init(){
+  syncLevelUnlocks();
   applyCosmetics();
   makeBoard();
   renderBoard();
@@ -1744,6 +1892,7 @@ function init(){
   renderDailyMissions();
   renderAchievements();
   renderDailyReward();
+  renderLevelRoad();
   generateTray();
   updateModeUi();
   renderMenu();
@@ -1754,7 +1903,8 @@ function init(){
   document.addEventListener("pointerdown",unlockAudio,{once:true});
   document.addEventListener("keydown",event=>{
     if(event.key==="Escape"){
-      if($("#dailyRewardModal").classList.contains("open")) closeDailyReward();
+      if($("#levelRoadModal").classList.contains("open")) closeLevelRoad();
+      else if($("#dailyRewardModal").classList.contains("open")) closeDailyReward();
       else if($("#achievementsModal").classList.contains("open")) closeAchievements();
       else if($("#settingsModal").classList.contains("open")) closeSettings();
       else if(shopModal.classList.contains("open")) closeShop();
