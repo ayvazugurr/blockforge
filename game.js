@@ -897,6 +897,7 @@ function showComboCallout(lineCount){
 }
 
 function triggerBoardShake(){
+  if(profile.effectIntensity==="low") return;
   const wrap=document.querySelector(".board-wrap");
   wrap.classList.remove("shake");
   void wrap.offsetWidth;
@@ -1346,6 +1347,8 @@ function useSecondChance(){
 }
 
 function burstAt(index,count){
+  const multiplier=profile.effectIntensity==="low"?.45:profile.effectIntensity==="high"?1.65:1;
+  count=Math.max(2,Math.round(count*multiplier));
   const cell=cells[index];
   if(!cell) return;
   const boardRect=boardEl.getBoundingClientRect();
@@ -1935,29 +1938,39 @@ function tone(frequency,start,duration,volume,type,target,slideTo){
   osc.start(start);osc.stop(start+duration+.04);
 }
 
+function musicPreset(){
+  if(profile.musicStyle==="focus") return {
+    chords:[[146.83,174.61,220],[130.81,164.81,196],[123.47,155.56,207.65],[138.59,174.61,233.08]],
+    duration:2.75,delay:2700,type:"triangle",melody:[0,1,2,1],volume:.014
+  };
+  if(profile.musicStyle==="arcade") return {
+    chords:[[164.81,207.65,246.94],[196,246.94,293.66],[146.83,196,246.94],[174.61,220,261.63]],
+    duration:2.15,delay:2200,type:"square",melody:[0,2,1,2,0],volume:.011
+  };
+  return {
+    chords:[[130.81,164.81,196],[110,146.83,174.61],[98,130.81,164.81],[116.54,146.83,196]],
+    duration:3.35,delay:3300,type:"sine",melody:[0,2,1,2],volume:.018
+  };
+}
+
 function scheduleMusic(){
   if(!audioContext||!musicGain) return;
-  const chords=[
-    [130.81,164.81,196.00],
-    [110.00,146.83,174.61],
-    [98.00,130.81,164.81],
-    [116.54,146.83,196.00]
-  ];
-  const chord=chords[musicStep++%chords.length];
+  const preset=musicPreset();
+  const chord=preset.chords[musicStep++%preset.chords.length];
   const now=audioContext.currentTime+.08;
-  chord.forEach((frequency,i)=>{
-    tone(frequency,now+i*.07,3.35,.018,"sine",musicGain);
-    tone(frequency*2,now+.55+i*.31,1.6,.006,"triangle",musicGain);
+  chord.forEach((frequency,index)=>{
+    tone(frequency,now+index*.07,preset.duration,preset.volume,preset.type,musicGain);
+    tone(frequency*2,now+.42+index*.26,preset.duration*.45,preset.volume*.34,"triangle",musicGain);
   });
-  [0,2,1,2].forEach((note,i)=>{
-    tone(chord[note]*2,now+.35+i*.72,.72,.009,"sine",musicGain);
+  preset.melody.forEach((note,index)=>{
+    tone(chord[note%chord.length]*2,now+.28+index*(preset.delay/1000/preset.melody.length),.55,preset.volume*.52,"sine",musicGain);
   });
 }
 
 function startMusicLoop(){
   if(musicTimer) clearInterval(musicTimer);
   scheduleMusic();
-  musicTimer=setInterval(scheduleMusic,3300);
+  musicTimer=setInterval(scheduleMusic,musicPreset().delay);
 }
 
 function playSfx(kind,power=1){
