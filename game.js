@@ -97,6 +97,8 @@ let gameOver = false;
 let activeDrag = null;
 let previewIndexes = [];
 let toastTimer = null;
+let dragFrame = null;
+let pendingDragPoint = null;
 
 const $ = selector => document.querySelector(selector);
 const boardEl = $("#board");
@@ -266,7 +268,8 @@ function beginDrag(event,entry,source){
   source.classList.add("picked");
   activeDrag={
     entry,source,ghost,pointerId:event.pointerId,pointerType:event.pointerType,
-    grabX:grab[0],grabY:grab[1],row:-99,col:-99,valid:false
+    grabX:grab[0],grabY:grab[1],row:-99,col:-99,valid:false,
+    metrics:getBoardMetrics(),lastPreviewKey:""
   };
   document.addEventListener("pointermove",moveDrag,{passive:false});
   document.addEventListener("pointerup",endDrag,{once:true});
@@ -303,48 +306,77 @@ function findGrabbedCell(event,source,shape){
   },shape.cells[0]);
 }
 
-function pointerBoardPosition(event,shape,grabX,grabY){
+function getBoardMetrics(){
   const first=cells[0].getBoundingClientRect();
   const second=cells[1].getBoundingClientRect();
+  const board=boardEl.getBoundingClientRect();
   const step=second.left-first.left;
-  const gap=Math.max(0,step-first.width);
-  const lift=event.pointerType==="touch"?72:0;
-  const pointerX=event.clientX;
-  const pointerY=event.clientY-lift;
-  const pointerCol=Math.round((pointerX-first.left-first.width/2)/step);
-  const pointerRow=Math.round((pointerY-first.top-first.height/2)/step);
+  return {
+    firstLeft:first.left,firstTop:first.top,cellSize:first.width,
+    step,gap:Math.max(0,step-first.width),
+    boardLeft:board.left,boardRight:board.right,
+    boardTop:board.top,boardBottom:board.bottom
+  };
+}
+
+function pointerBoardPosition(point,grabX,grabY,metrics){
+  const lift=point.pointerType==="touch"?72:0;
+  const pointerX=point.clientX;
+  const pointerY=point.clientY-lift;
+  const pointerCol=Math.round((pointerX-metrics.firstLeft-metrics.cellSize/2)/metrics.step);
+  const pointerRow=Math.round((pointerY-metrics.firstTop-metrics.cellSize/2)/metrics.step);
   const col=pointerCol-grabX;
   const row=pointerRow-grabY;
-  const boardRect=boardEl.getBoundingClientRect();
   const nearBoard=
-    pointerX>=boardRect.left-first.width &&
-    pointerX<=boardRect.right+first.width &&
-    pointerY>=boardRect.top-first.height &&
-    pointerY<=boardRect.bottom+first.height;
+    pointerX>=metrics.boardLeft-metrics.cellSize &&
+    pointerX<=metrics.boardRight+metrics.cellSize &&
+    pointerY>=metrics.boardTop-metrics.cellSize &&
+    pointerY<=metrics.boardBottom+metrics.cellSize;
   const ghostLeft=nearBoard
-    ? first.left+col*step
-    : pointerX-grabX*step-first.width/2;
+    ? metrics.firstLeft+col*metrics.step
+    : pointerX-grabX*metrics.step-metrics.cellSize/2;
   const ghostTop=nearBoard
-    ? first.top+row*step
-    : pointerY-grabY*step-first.height/2;
-  return {row,col,ghostLeft,ghostTop,cellSize:first.width,gap};
+    ? metrics.firstTop+row*metrics.step
+    : pointerY-grabY*metrics.step-metrics.cellSize/2;
+  return {row,col,ghostLeft,ghostTop,cellSize:metrics.cellSize,gap:metrics.gap};
+}
+
+function applyDragPosition(point){
+  if(!activeDrag||point.pointerId!==activeDrag.pointerId) return;
+  const pos=pointerBoardPosition(
+    point,activeDrag.grabX,activeDrag.grabY,activeDrag.metrics
+  );
+  const valid=canPlace(activeDrag.entry.shape,pos.row,pos.col);
+  activeDrag.row=pos.row;
+  activeDrag.col=pos.col;
+  activeDrag.valid=valid;
+  activeDrag.ghost.style.transform=`translate3d(${pos.ghostLeft}px,${pos.ghostTop}px,0)`;
+  activeDrag.ghost.style.setProperty("--ghost-size",Math.max(25,pos.cellSize)+"px");
+  activeDrag.ghost.style.setProperty("--ghost-gap",pos.gap+"px");
+  activeDrag.ghost.classList.toggle("invalid",!valid);
+  const previewKey=pos.row+":"+pos.col+":"+valid;
+  if(previewKey!==activeDrag.lastPreviewKey){
+    activeDrag.lastPreviewKey=previewKey;
+    showPreview(activeDrag.entry.shape,pos.row,pos.col,valid);
+  }
+}
+
+function flushDragFrame(){
+  dragFrame=null;
+  if(!pendingDragPoint) return;
+  const point=pendingDragPoint;
+  pendingDragPoint=null;
+  applyDragPosition(point);
 }
 
 function moveDrag(event){
   if(!activeDrag||event.pointerId!==activeDrag.pointerId) return;
   event.preventDefault();
-  const pos=pointerBoardPosition(
-    event,activeDrag.entry.shape,activeDrag.grabX,activeDrag.grabY
-  );
-  activeDrag.row=pos.row;
-  activeDrag.col=pos.col;
-  activeDrag.valid=canPlace(activeDrag.entry.shape,pos.row,pos.col);
-  activeDrag.ghost.style.left=pos.ghostLeft+"px";
-  activeDrag.ghost.style.top=pos.ghostTop+"px";
-  activeDrag.ghost.style.setProperty("--ghost-size",Math.max(25,pos.cellSize)+"px");
-  activeDrag.ghost.style.setProperty("--ghost-gap",pos.gap+"px");
-  activeDrag.ghost.classList.toggle("invalid",!activeDrag.valid);
-  showPreview(activeDrag.entry.shape,pos.row,pos.col,activeDrag.valid);
+  pendingDragPoint={
+    clientX:event.clientX,clientY:event.clientY,
+    pointerId:event.pointerId,pointerType:event.pointerType
+  };
+  if(dragFrame===null) dragFrame=requestAnimationFrame(flushDragFrame);
 }
 
 function showPreview(shape,row,col,valid){
@@ -366,6 +398,17 @@ function clearPreview(){
 
 function endDrag(event){
   if(!activeDrag) return;
+  if(event.pointerId===activeDrag.pointerId){
+    if(dragFrame!==null){
+      cancelAnimationFrame(dragFrame);
+      dragFrame=null;
+    }
+    pendingDragPoint=null;
+    applyDragPosition({
+      clientX:event.clientX,clientY:event.clientY,
+      pointerId:event.pointerId,pointerType:event.pointerType
+    });
+  }
   const drag=activeDrag;
   activeDrag=null;
   document.removeEventListener("pointermove",moveDrag);
@@ -766,6 +809,9 @@ function init(){
       activeDrag.ghost.remove();
       activeDrag.source.classList.remove("picked");
       activeDrag=null;
+      if(dragFrame!==null) cancelAnimationFrame(dragFrame);
+      dragFrame=null;
+      pendingDragPoint=null;
       clearPreview();
     }
   });
