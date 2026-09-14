@@ -216,7 +216,8 @@ function generateTray(){
     picked.push(weightedShape(pool,fullness));
   }
   tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
-  renderTray();
+  renderTray(true);
+  if(audioContext) setTimeout(()=>playSfx("refill"),70);
   statusEl.textContent="Drag a block onto the board";
 }
 
@@ -241,11 +242,12 @@ function shapeElement(shape){
   return block;
 }
 
-function renderTray(){
+function renderTray(fresh=false){
   trayEl.innerHTML="";
-  tray.forEach(entry=>{
+  tray.forEach((entry,index)=>{
     const slot=document.createElement("div");
-    slot.className="tray-slot"+(entry.used?" used":"");
+    slot.className="tray-slot"+(entry.used?" used":"")+(fresh?" entering":"");
+    if(fresh) slot.style.setProperty("--enter-delay",(index*85)+"ms");
     if(!entry.used){
       const block=shapeElement(entry.shape);
       block.dataset.uid=entry.uid;
@@ -678,6 +680,8 @@ function playSfx(kind,power=1){
     [220,174.61,130.81].forEach((f,i)=>tone(f,now+i*.22,.5,.045,"sine",sfxGain));
   }else if(kind==="buy"){
     [523.25,659.25,783.99].forEach((f,i)=>tone(f,now+i*.08,.26,.045,"triangle",sfxGain));
+  }else if(kind==="refill"){
+    [330,440,554.37].forEach((f,i)=>tone(f,now+i*.075,.18,.025,"sine",sfxGain));
   }else if(kind==="restart"){
     tone(180,now,.18,.04,"sine",sfxGain,360);
   }
