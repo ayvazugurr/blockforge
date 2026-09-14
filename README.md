@@ -63,7 +63,7 @@ A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
 ## Play
 
-Live site: https://ayvazugurr.github.io/blockforge/
+Live site (after GitHub Pages is enabled with **Source: GitHub Actions**): https://ayvazugurr.github.io/blockforge/
 
 For local testing, open `index.html` in a modern browser. PWA installation and offline caching require HTTPS or localhost. Audio begins after the first click or touch because browsers block sound autoplay.
 
