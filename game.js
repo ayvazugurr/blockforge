@@ -929,15 +929,18 @@ function checkDailyMissions(){
 function renderDailyReward(){
   const today=localDateKey();
   const available=dailyAvailable();
+  const claimedToday=profile.daily.lastClaim===today;
   const nextStreak=profile.daily.lastClaim===previousDateKey(today)?profile.daily.streak+1:1;
-  const activeDay=((nextStreak-1)%7)+1;
-  $("#streakText").textContent="DAY "+Math.max(1,profile.daily.streak||activeDay)+" STREAK";
+  const shownStreak=claimedToday?profile.daily.streak:nextStreak;
+  const activeDay=((Math.max(1,shownStreak)-1)%7)+1;
+  $("#streakText").textContent="DAY "+Math.max(1,shownStreak)+" STREAK";
   const calendar=$("#rewardCalendar");
   calendar.innerHTML="";
   DAILY_REWARDS.forEach((reward,index)=>{
     const day=index+1;
     const tile=document.createElement("div");
-    tile.className="reward-day"+(day<activeDay?" claimed":"")+(day===activeDay?" today":"");
+    const claimed=day<activeDay||(claimedToday&&day===activeDay);
+    tile.className="reward-day"+(claimed?" claimed":"")+(!claimedToday&&day===activeDay?" today":"");
     tile.innerHTML=`<span>DAY ${day}</span><strong>${reward.icon}</strong><b>${reward.label}</b>`;
     calendar.appendChild(tile);
   });
@@ -1049,7 +1052,18 @@ function snapshotMove(){
   lastMoveSnapshot={
     grid:[...grid],
     tray:structuredClone(tray),
-    score,combo
+    score,combo,
+    profileState:{
+      coins:profile.coins,
+      best:profile.best,
+      level:profile.level,
+      xp:profile.xp,
+      modeBests:structuredClone(profile.modeBests),
+      stats:structuredClone(profile.stats),
+      missions:structuredClone(profile.missions),
+      dailyMissions:structuredClone(profile.dailyMissions),
+      achievements:structuredClone(profile.achievements)
+    }
   };
 }
 
@@ -1076,19 +1090,33 @@ function usePower(power){
   }
   if(power==="shuffle"){
     if(!consumePower("shuffle")) return;
+    lastMoveSnapshot=null;
     tray=[];
     generateTray();
     playSfx("power");
     showToast("Blocks shuffled");
   }else if(power==="undo"){
     if(!lastMoveSnapshot){showToast("No move to undo");return}
-    if(!consumePower("undo")) return;
-    grid=[...lastMoveSnapshot.grid];
-    tray=structuredClone(lastMoveSnapshot.tray);
-    score=lastMoveSnapshot.score;
-    combo=lastMoveSnapshot.combo;
+    const snapshot=lastMoveSnapshot;
+    const undoStock=profile.powers.undo;
+    grid=[...snapshot.grid];
+    tray=structuredClone(snapshot.tray);
+    score=snapshot.score;
+    combo=snapshot.combo;
+    profile.coins=snapshot.profileState.coins;
+    profile.best=snapshot.profileState.best;
+    profile.level=snapshot.profileState.level;
+    profile.xp=snapshot.profileState.xp;
+    profile.modeBests=structuredClone(snapshot.profileState.modeBests);
+    profile.stats=structuredClone(snapshot.profileState.stats);
+    profile.missions=structuredClone(snapshot.profileState.missions);
+    profile.dailyMissions=structuredClone(snapshot.profileState.dailyMissions);
+    profile.achievements=structuredClone(snapshot.profileState.achievements);
+    profile.powers.undo=Math.max(0,undoStock-1);
+    profile.stats.powersUsed++;
     lastMoveSnapshot=null;
-    renderBoard();renderTray();updateHud();
+    saveProfile();
+    renderBoard();renderTray();renderMissions();renderDailyMissions();renderAchievements();updateHud();
     playSfx("power");
     showToast("Last move restored");
   }else if(power==="secondChance"){
@@ -1103,6 +1131,7 @@ function handleHammer(event){
   const index=Number(cell.dataset.index);
   if(!grid[index]){showToast("Choose a filled cell");return}
   if(!consumePower("hammer")) return;
+  lastMoveSnapshot=null;
   grid[index]=false;
   activePower=null;
   document.body.classList.remove("hammer-mode");
@@ -1118,6 +1147,7 @@ function handleHammer(event){
 function useSecondChance(){
   if(!gameOver||lastGameOverReason==="time"||profile.powers.secondChance<=0) return;
   if(!consumePower("secondChance")) return;
+  lastMoveSnapshot=null;
   const occupied=grid.map((value,index)=>value?index:-1).filter(index=>index>=0);
   occupied.sort(()=>Math.random()-.5);
   const cleared=occupied.slice(0,Math.min(14,occupied.length));
@@ -1406,6 +1436,26 @@ function setupModes(){
   });
 }
 
+function setupV07(){
+  $(".power-bar").addEventListener("click",event=>{
+    const button=event.target.closest("button[data-power]");
+    if(button) usePower(button.dataset.power);
+  });
+  boardEl.addEventListener("click",handleHammer);
+  $("#secondChanceBtn").addEventListener("click",useSecondChance);
+  $("#dailyRewardBtn").addEventListener("click",openDailyReward);
+  $("#closeDailyBtn").addEventListener("click",closeDailyReward);
+  $("#claimDailyBtn").addEventListener("click",claimDailyReward);
+  $("#achievementsBtn").addEventListener("click",openAchievements);
+  $("#closeAchievementsBtn").addEventListener("click",closeAchievements);
+  $("#dailyRewardModal").addEventListener("pointerdown",event=>{
+    if(event.target===$("#dailyRewardModal")) closeDailyReward();
+  });
+  $("#achievementsModal").addEventListener("pointerdown",event=>{
+    if(event.target===$("#achievementsModal")) closeAchievements();
+  });
+}
+
 function showToast(message){
   const toast=$("#toast");
   toast.textContent=message;
@@ -1687,8 +1737,13 @@ function init(){
   setupMissions();
   setupShop();
   setupModes();
+  setupV07();
   ensureMissions();
+  ensureDailyContent();
   renderMissions();
+  renderDailyMissions();
+  renderAchievements();
+  renderDailyReward();
   generateTray();
   updateModeUi();
   renderMenu();
@@ -1699,7 +1754,9 @@ function init(){
   document.addEventListener("pointerdown",unlockAudio,{once:true});
   document.addEventListener("keydown",event=>{
     if(event.key==="Escape"){
-      if($("#settingsModal").classList.contains("open")) closeSettings();
+      if($("#dailyRewardModal").classList.contains("open")) closeDailyReward();
+      else if($("#achievementsModal").classList.contains("open")) closeAchievements();
+      else if($("#settingsModal").classList.contains("open")) closeSettings();
       else if(shopModal.classList.contains("open")) closeShop();
       else if($("#pauseModal").classList.contains("open")) resumeGame();
       else pauseGame();
