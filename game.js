@@ -1237,7 +1237,10 @@ function snapshotMove(){
       stats:structuredClone(profile.stats),
       missions:structuredClone(profile.missions),
       dailyMissions:structuredClone(profile.dailyMissions),
-      achievements:structuredClone(profile.achievements)
+      achievements:structuredClone(profile.achievements),
+      progression:structuredClone(profile.progression),
+      owned:structuredClone(profile.owned),
+      powers:structuredClone(profile.powers)
     }
   };
 }
@@ -1273,7 +1276,6 @@ function usePower(power){
   }else if(power==="undo"){
     if(!lastMoveSnapshot){showToast("No move to undo");return}
     const snapshot=lastMoveSnapshot;
-    const undoStock=profile.powers.undo;
     grid=[...snapshot.grid];
     tray=structuredClone(snapshot.tray);
     score=snapshot.score;
@@ -1291,7 +1293,10 @@ function usePower(power){
     profile.missions=structuredClone(snapshot.profileState.missions);
     profile.dailyMissions=structuredClone(snapshot.profileState.dailyMissions);
     profile.achievements=structuredClone(snapshot.profileState.achievements);
-    profile.powers.undo=Math.max(0,undoStock-1);
+    profile.progression=structuredClone(snapshot.profileState.progression);
+    profile.owned=structuredClone(snapshot.profileState.owned);
+    profile.powers=structuredClone(snapshot.profileState.powers);
+    profile.powers.undo=Math.max(0,profile.powers.undo-1);
     profile.stats.powersUsed++;
     lastMoveSnapshot=null;
     saveProfile();
@@ -1876,7 +1881,9 @@ function setupV07(){
   $("#retryLevelBtn").addEventListener("click",restartGame);
   $("#levelResultMenuBtn").addEventListener("click",()=>{
     $("#levelCompleteModal").classList.remove("open");
-    gameOver=false;openLevelSelect();
+    gameOver=false;
+    openMainMenu();
+    openLevelSelect();
   });
   $("#tutorialNextBtn").addEventListener("click",nextTutorial);
   $("#tutorialSkipBtn").addEventListener("click",finishTutorial);
