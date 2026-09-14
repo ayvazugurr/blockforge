@@ -1,8 +1,18 @@
-# BlockForge v0.7
+# BlockForge v0.8
 
 A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
-## What's new in v0.7
+## What's new in v0.8
+
+- Level Road screen with visible milestones and upcoming unlocks
+- Five player ranks from Apprentice to Forge Legend
+- Small coin reward on every level and a booster chest every fifth level
+- Level-gated special blocks: Bomb, Golden, Lasers, Rainbow and Mystery
+- Level-earned Frost/Magma palettes and Dawn Forge/Void Core themes
+- Mission pool that expands with new challenge types at higher levels
+- Safe migration that prevents old profiles from reclaiming past level rewards
+
+## Included from v0.7
 
 - Seven-day Daily Reward streak with coins, boosters and a day-seven jackpot
 - Three rotating Daily Missions with persistent progress and rewards
