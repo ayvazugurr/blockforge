@@ -261,9 +261,13 @@ function beginDrag(event,entry,source){
   playSfx("pickup");
   if(navigator.vibrate) navigator.vibrate(9);
   const ghost=createGhost(entry.shape);
+  const grab=findGrabbedCell(event,source,entry.shape);
   document.body.appendChild(ghost);
   source.classList.add("picked");
-  activeDrag={entry,source,ghost,pointerId:event.pointerId,pointerType:event.pointerType,row:-99,col:-99,valid:false};
+  activeDrag={
+    entry,source,ghost,pointerId:event.pointerId,pointerType:event.pointerType,
+    grabX:grab[0],grabY:grab[1],row:-99,col:-99,valid:false
+  };
   document.addEventListener("pointermove",moveDrag,{passive:false});
   document.addEventListener("pointerup",endDrag,{once:true});
   document.addEventListener("pointercancel",endDrag,{once:true});
@@ -286,31 +290,59 @@ function createGhost(shape){
   return ghost;
 }
 
-function pointerBoardPosition(event,shape){
-  const rect=boardEl.getBoundingClientRect();
-  const style=getComputedStyle(boardEl);
-  const gap=parseFloat(style.gap)||5;
-  const padding=parseFloat(style.paddingLeft)||5;
-  const cellSize=(rect.width-padding*2-gap*(SIZE-1))/SIZE;
-  const lift=event.pointerType==="touch"?72:28;
-  const px=event.clientX;
-  const py=event.clientY-lift;
+function findGrabbedCell(event,source,shape){
+  const mini=source.querySelector(".mini-grid");
+  const rect=mini.getBoundingClientRect();
   const {width,height}=dimensions(shape);
-  const col=Math.round((px-rect.left-padding-cellSize*width/2)/ (cellSize+gap)+.5);
-  const row=Math.round((py-rect.top-padding-cellSize*height/2)/ (cellSize+gap)+.5);
-  return {row,col,x:px,y:py,cellSize};
+  const rawX=Math.max(0,Math.min(width-1,Math.floor((event.clientX-rect.left)/Math.max(1,rect.width)*width)));
+  const rawY=Math.max(0,Math.min(height-1,Math.floor((event.clientY-rect.top)/Math.max(1,rect.height)*height)));
+  return shape.cells.reduce((nearest,cell)=>{
+    const distance=(cell[0]-rawX)**2+(cell[1]-rawY)**2;
+    const nearestDistance=(nearest[0]-rawX)**2+(nearest[1]-rawY)**2;
+    return distance<nearestDistance?cell:nearest;
+  },shape.cells[0]);
+}
+
+function pointerBoardPosition(event,shape,grabX,grabY){
+  const first=cells[0].getBoundingClientRect();
+  const second=cells[1].getBoundingClientRect();
+  const step=second.left-first.left;
+  const gap=Math.max(0,step-first.width);
+  const lift=event.pointerType==="touch"?72:0;
+  const pointerX=event.clientX;
+  const pointerY=event.clientY-lift;
+  const pointerCol=Math.round((pointerX-first.left-first.width/2)/step);
+  const pointerRow=Math.round((pointerY-first.top-first.height/2)/step);
+  const col=pointerCol-grabX;
+  const row=pointerRow-grabY;
+  const boardRect=boardEl.getBoundingClientRect();
+  const nearBoard=
+    pointerX>=boardRect.left-first.width &&
+    pointerX<=boardRect.right+first.width &&
+    pointerY>=boardRect.top-first.height &&
+    pointerY<=boardRect.bottom+first.height;
+  const ghostLeft=nearBoard
+    ? first.left+col*step
+    : pointerX-grabX*step-first.width/2;
+  const ghostTop=nearBoard
+    ? first.top+row*step
+    : pointerY-grabY*step-first.height/2;
+  return {row,col,ghostLeft,ghostTop,cellSize:first.width,gap};
 }
 
 function moveDrag(event){
   if(!activeDrag||event.pointerId!==activeDrag.pointerId) return;
   event.preventDefault();
-  const pos=pointerBoardPosition(event,activeDrag.entry.shape);
+  const pos=pointerBoardPosition(
+    event,activeDrag.entry.shape,activeDrag.grabX,activeDrag.grabY
+  );
   activeDrag.row=pos.row;
   activeDrag.col=pos.col;
   activeDrag.valid=canPlace(activeDrag.entry.shape,pos.row,pos.col);
-  activeDrag.ghost.style.left=pos.x+"px";
-  activeDrag.ghost.style.top=pos.y+"px";
-  activeDrag.ghost.style.setProperty("--ghost-size",Math.max(25,pos.cellSize-2)+"px");
+  activeDrag.ghost.style.left=pos.ghostLeft+"px";
+  activeDrag.ghost.style.top=pos.ghostTop+"px";
+  activeDrag.ghost.style.setProperty("--ghost-size",Math.max(25,pos.cellSize)+"px");
+  activeDrag.ghost.style.setProperty("--ghost-gap",pos.gap+"px");
   activeDrag.ghost.classList.toggle("invalid",!activeDrag.valid);
   showPreview(activeDrag.entry.shape,pos.row,pos.col,activeDrag.valid);
 }
