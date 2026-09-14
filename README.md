@@ -1,8 +1,20 @@
-# BlockForge v0.9
+# BlockForge v1.0
 
 A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
-## What's new in v0.9
+## What's new in v1.0
+
+- Installable Progressive Web App with standalone display mode
+- Offline-first service worker and automatic cache updates
+- BlockForge app and maskable icons plus a branded launch screen
+- Versioned, checksummed saves with automatic previous-save recovery
+- Manual JSON save export and import controls
+- Persistent-storage request and page-exit safety saves
+- Mobile safe-area, compact-screen, landscape and standalone layouts
+- Reduced-motion support and capped particle counts
+- GitHub Pages deployment workflow for every main-branch update
+
+## Included from v0.9
 
 - 30-level campaign with escalating score, line and terrain objectives
 - Limited moves, one-to-three-star ratings and persistent level progress
@@ -51,7 +63,9 @@ A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
 ## Play
 
-Open `index.html` in a modern browser. Audio begins after the first click or touch because browsers block sound autoplay.
+Live site: https://ayvazugurr.github.io/blockforge/
+
+For local testing, open `index.html` in a modern browser. PWA installation and offline caching require HTTPS or localhost. Audio begins after the first click or touch because browsers block sound autoplay.
 
 ## Controls
 
