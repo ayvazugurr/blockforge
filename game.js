@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.0.1";
 
 const BASE_SHAPES = [
   {id:"single",cells:[[0,0]],tier:1},
@@ -111,7 +111,9 @@ const SHOP = {
   skins:[
     {id:"forge",name:"Forge",desc:"Polished metal blocks.",price:0,preview:["#6ed9ff","#3478ff"]},
     {id:"crystal",name:"Crystal",desc:"Cut crystal edges and glow.",price:55,preview:["#dffbff","#6d66ff"]},
-    {id:"candy",name:"Candy",desc:"Soft, rounded arcade blocks.",price:80,preview:["#ff9edc","#8b5dff"]}
+    {id:"candy",name:"Candy",desc:"Soft, rounded arcade blocks.",price:80,preview:["#ff9edc","#8b5dff"]},
+    {id:"ember",name:"Ember",desc:"Copper edges and a molten core.",price:240,preview:["#ffe06d","#ff3b22"]},
+    {id:"holo",name:"Holo",desc:"Prismatic facets and etched borders.",price:360,preview:["#a8fff1","#a36dff"]}
   ],
   palettes:[
     {id:"ocean",name:"Ocean",desc:"Cool blue forge energy.",price:0,preview:["#6ed9ff","#3478ff"]},
@@ -124,6 +126,8 @@ const SHOP = {
     {id:"midnight",name:"Midnight",desc:"The original deep-space forge.",price:0,preview:["#12243b","#050b14"]},
     {id:"forest",name:"Forest",desc:"Calm emerald workshop.",price:90,preview:["#174c3d","#04100e"]},
     {id:"aurora",name:"Aurora",desc:"Violet sky and blue haze.",price:135,preview:["#3c3971","#100a1c"]},
+    {id:"nebula",name:"Nebula",desc:"Deep violet space forge.",price:320,preview:["#2f1f70","#0a0920"]},
+    {id:"foundry",name:"Foundry",desc:"Copper and charcoal workshop.",price:450,preview:["#583324","#100b0a"]},
     {id:"dawn",name:"Dawn Forge",desc:"Earned by reaching Level 7.",price:0,unlockLevel:7,preview:["#48294f","#ff9f68"]},
     {id:"void",name:"Void Core",desc:"Earned by reaching Level 15.",price:0,unlockLevel:15,preview:["#11101e","#622cff"]}
   ],
@@ -171,6 +175,7 @@ const defaults = {
     games:0,timedGames:0,specials:0,powersUsed:0,maxCombo:0,shopPurchases:0
   },
   owned:{skins:["forge"],palettes:["ocean"],themes:["midnight"],packs:[]},
+  activePacks:[],
   selected:{skin:"forge",palette:"ocean",theme:"midnight"}
 };
 
@@ -214,6 +219,8 @@ function normalizeProfile(stored={}){
       themes:[...new Set([...(defaults.owned.themes),...(stored.owned?.themes||[])])],
       packs:[...new Set(stored.owned?.packs||[])]
     },
+    activePacks:(Array.isArray(stored.activePacks)?stored.activePacks:(stored.owned?.packs||[]))
+      .filter(pack=>(stored.owned?.packs||[]).includes(pack)&&PACK_SHAPES[pack]),
     selected:{...defaults.selected,...(stored.selected||{})},
     stats:{...defaults.stats,...(stored.stats||{})},
     powers:{...defaults.powers,...(stored.powers||{})},
@@ -302,7 +309,13 @@ const shopGrid = $("#shopGrid");
 const shopTemplate = $("#shopItemTemplate");
 const cells = [];
 
+let saveTimer=null;
 function saveProfile(){
+  if(saveTimer===null) saveTimer=setTimeout(flushSave,180);
+}
+function flushSave(){
+  clearTimeout(saveTimer);
+  saveTimer=null;
   try{
     const previous=localStorage.getItem(SAVE_KEY);
     if(previous){
@@ -340,6 +353,7 @@ async function importSaveFile(file){
     if(!imported||typeof imported!=="object"||!imported.owned||!imported.stats) throw new Error("Invalid save");
     localStorage.setItem(BACKUP_KEY,localStorage.getItem(SAVE_KEY)||"");
     profile=normalizeProfile(imported);
+    lastMoveSnapshot=null;
     saveProfile();
     applyCosmetics();
     updateHud();renderMissions();renderDailyMissions();renderAchievements();renderLevelRoad();renderMenu();
@@ -416,7 +430,7 @@ function dimensions(shape){
 
 function allShapes(){
   const shapes = [...BASE_SHAPES];
-  profile.owned.packs.forEach(pack=>{
+  profile.activePacks.filter(pack=>profile.owned.packs.includes(pack)).forEach(pack=>{
     if(PACK_SHAPES[pack]) shapes.push(...PACK_SHAPES[pack]);
   });
   return shapes;
@@ -516,7 +530,7 @@ function renderTray(fresh=false){
 }
 
 function beginDrag(event,entry,source){
-  if(busy||gameOver||paused||entry.used) return;
+  if(activeDrag||busy||gameOver||paused||entry.used||isBlockingOverlayOpen()) return;
   event.preventDefault();
   unlockAudio();
   playSfx("pickup");
@@ -531,8 +545,8 @@ function beginDrag(event,entry,source){
     metrics:getBoardMetrics(),lastPreviewKey:""
   };
   document.addEventListener("pointermove",moveDrag,{passive:false});
-  document.addEventListener("pointerup",endDrag,{once:true});
-  document.addEventListener("pointercancel",endDrag,{once:true});
+  document.addEventListener("pointerup",endDrag);
+  document.addEventListener("pointercancel",endDrag);
   moveDrag(event);
 }
 
@@ -657,7 +671,7 @@ function clearPreview(){
 }
 
 function endDrag(event){
-  if(!activeDrag) return;
+  if(!activeDrag||event.pointerId!==activeDrag.pointerId) return;
   if(event.pointerId===activeDrag.pointerId){
     if(dragFrame!==null){
       cancelAnimationFrame(dragFrame);
@@ -672,11 +686,13 @@ function endDrag(event){
   const drag=activeDrag;
   activeDrag=null;
   document.removeEventListener("pointermove",moveDrag);
+  document.removeEventListener("pointerup",endDrag);
+  document.removeEventListener("pointercancel",endDrag);
   clearPreview();
   drag.source.classList.remove("picked");
   drag.ghost.remove();
   if(event.pointerId!==drag.pointerId) return;
-  if(drag.valid){
+  if(drag.valid&&event.type!=="pointercancel"&&!paused&&!gameOver&&!isBlockingOverlayOpen()){
     placeShape(drag.entry,drag.row,drag.col);
   }else{
     playSfx("error");
@@ -811,6 +827,9 @@ function missionProgress(mission){
 function renderMissions(){
   ensureMissions();
   const list=$("#missionsList");
+  const key=JSON.stringify([profile.missionCycle,profile.missions.map(m=>[m.label,m.target,m.done,missionProgress(m)])]);
+  if(list.dataset.renderKey===key) return;
+  list.dataset.renderKey=key;
   list.innerHTML="";
   profile.missions.forEach(mission=>{
     const progress=Math.min(mission.target,missionProgress(mission));
@@ -880,7 +899,8 @@ function grantLevelReward(level){
   return {coins,chest,power};
 }
 
-function renderLevelRoad(){
+function renderLevelRoad(force=false){
+  if(!force&&!$("#levelRoadModal").classList.contains("open")) return;
   syncLevelUnlocks();
   $("#roadTitle").textContent=playerTitle(profile.level).toUpperCase();
   const futureUnlocks=[];
@@ -910,7 +930,7 @@ function renderLevelRoad(){
 }
 
 function openLevelRoad(){
-  renderLevelRoad();
+  renderLevelRoad(true);
   $("#levelRoadModal").classList.add("open");
   $("#levelRoadModal").setAttribute("aria-hidden","false");
 }
@@ -1149,6 +1169,9 @@ function renderDailyMissions(){
   ensureDailyContent();
   $("#dailyDate").textContent=profile.dailyMissions.date.slice(5).replace("-","/");
   const list=$("#dailyMissionsList");
+  const key=JSON.stringify(profile.dailyMissions.items.map(m=>[m.label,m.target,m.done,Number(profile.stats[m.type]||0)-m.start]));
+  if(list.dataset.renderKey===key) return;
+  list.dataset.renderKey=key;
   list.innerHTML="";
   profile.dailyMissions.items.forEach(mission=>{
     const progress=Math.min(mission.target,Math.max(0,Number(profile.stats[mission.type]||0)-mission.start));
@@ -1249,7 +1272,8 @@ function achievementValue(def){
   return Number(profile.stats[def.type]||0);
 }
 
-function renderAchievements(){
+function renderAchievements(force=false){
+  if(!force&&!$("#achievementsModal").classList.contains("open")) return;
   const list=$("#achievementsList");
   list.innerHTML="";
   ACHIEVEMENT_DEFS.forEach(def=>{
@@ -1288,7 +1312,7 @@ function checkAchievements(){
 }
 
 function openAchievements(){
-  renderAchievements();
+  renderAchievements(true);
   $("#achievementsModal").classList.add("open");
   $("#achievementsModal").setAttribute("aria-hidden","false");
 }
@@ -1451,6 +1475,7 @@ function burstAt(index,count){
   const rect=cell.getBoundingClientRect();
   const x=rect.left-boardRect.left+rect.width/2;
   const y=rect.top-boardRect.top+rect.height/2;
+  const fragment=document.createDocumentFragment();
   for(let i=0;i<count;i++){
     const p=document.createElement("i");
     p.className="particle";
@@ -1462,9 +1487,10 @@ function burstAt(index,count){
     p.style.setProperty("--dy",Math.sin(angle)*distance+"px");
     p.style.setProperty("--spin",(Math.random()*540-270)+"deg");
     p.style.setProperty("--particle",i%3===0?"var(--gold)":"var(--accent)");
-    fxLayer.appendChild(p);
-    p.addEventListener("animationend",()=>p.remove());
+    fragment.appendChild(p);
+    p.addEventListener("animationend",()=>p.remove(),{once:true});
   }
+  fxLayer.appendChild(fragment);
 }
 
 function scorePop(text){
@@ -1555,6 +1581,11 @@ function campaignStars(){
   return ratio>=.42?3:ratio>=.18?2:1;
 }
 
+function campaignReward(level,oldStars,stars){
+  const improvement=Math.max(0,stars-oldStars);
+  return {coins:(oldStars===0?8+level:0)+improvement*7,
+    xp:oldStars===0?12+level*2:improvement*4};
+}
 function finishCampaignLevel(success,reason=""){
   if(gameOver) return;
   gameOver=true;
@@ -1567,13 +1598,14 @@ function finishCampaignLevel(success,reason=""){
   const stars=success?campaignStars():0;
   let reward=0;
   if(success){
+    const firstClear=oldStars===0;
     const improvement=Math.max(0,stars-oldStars);
     profile.campaign.stars[currentCampaignLevel]=Math.max(oldStars,stars);
     profile.campaign.best[currentCampaignLevel]=Math.max(Number(profile.campaign.best[currentCampaignLevel]||0),score);
     profile.campaign.unlocked=Math.max(profile.campaign.unlocked,Math.min(30,currentCampaignLevel+1));
-    reward=8+currentCampaignLevel+improvement*7;
+    reward=campaignReward(currentCampaignLevel,oldStars,stars).coins;
     profile.coins+=reward;
-    addXP(12+currentCampaignLevel*2);
+    addXP(campaignReward(currentCampaignLevel,oldStars,stars).xp);
   }
   recordProgress({games:1});
   $("#levelResultEyebrow").textContent=success?"LEVEL COMPLETE":"OUT OF MOVES";
@@ -1737,6 +1769,7 @@ function endGame(reason="full"){
 
 function restartGame(){
   if(!currentMode) return;
+  if(activeDrag) endDrag({pointerId:activeDrag.pointerId,type:"pointercancel",clientX:-999,clientY:-999});
   activePower=null;
   lastMoveSnapshot=null;
   document.body.classList.remove("hammer-mode");
@@ -2194,7 +2227,9 @@ function renderShop(){
     }else if(selected){
       button.textContent="EQUIPPED";button.className="buy-btn selected";
     }else if(owned){
-      button.textContent=activeShopTab==="packs"?"OWNED":"EQUIP";button.className="buy-btn owned";
+      button.textContent=activeShopTab==="packs"
+        ?(profile.activePacks.includes(item.id)?"DISABLE":"ENABLE"):"EQUIP";
+      button.className="buy-btn owned";
     }else{
       button.textContent="● "+item.price;
       button.disabled=profile.coins<item.price;
@@ -2242,7 +2277,17 @@ function shopAction(category,item){
     playSfx("buy");
     showToast(item.name+" unlocked");
   }
-  if(category!=="packs"){
+  lastMoveSnapshot=null;
+  clearTimeout(shopPreviewTimer);
+  if(category==="packs"){
+    if(owned){
+      profile.activePacks=profile.activePacks.includes(item.id)
+        ?profile.activePacks.filter(pack=>pack!==item.id):[...profile.activePacks,item.id];
+      showToast(item.name+(profile.activePacks.includes(item.id)?" enabled — next refill":" disabled — next refill"));
+    }else{
+      showToast(item.name+" bought. Choose ENABLE when ready.");
+    }
+  }else{
     profile.selected[category.slice(0,-1)]=item.id;
     applyCosmetics();
   }
@@ -2340,7 +2385,8 @@ function setupRelease(){
 
   window.addEventListener("online",()=>showToast("Back online"));
   window.addEventListener("offline",()=>showToast("Offline mode active"));
-  window.addEventListener("pagehide",saveProfile);
+  window.addEventListener("pagehide",flushSave);
+  document.addEventListener("visibilitychange",()=>{if(document.hidden) flushSave()});
   window.addEventListener("error",saveProfile);
   window.addEventListener("unhandledrejection",saveProfile);
   document.addEventListener("pointerdown",requestPersistentStorage,{once:true});
