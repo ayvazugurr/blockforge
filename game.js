@@ -969,6 +969,7 @@ function detonateLaser(row,col,direction){
     burstAt(index,9);
   },i*28));
   setTimeout(()=>{
+    clearCampaignTerrain(affected);
     affected.forEach(index=>grid[index]=false);
     const bonus=120+removed*30;
     const earned=Math.max(2,Math.ceil(removed/2));
@@ -999,6 +1000,7 @@ function detonateBomb(row,col,label="BOOM!"){
     burstAt(index,12);
   },i*22));
   setTimeout(()=>{
+    clearCampaignTerrain(affected);
     affected.forEach(index=>grid[index]=false);
     const bonus=Math.max(40,removed*35);
     const earned=Math.max(2,Math.floor(removed/2));
@@ -1308,6 +1310,7 @@ function handleHammer(event){
   if(!grid[index]){showToast("Choose a filled cell");return}
   if(!consumePower("hammer")) return;
   lastMoveSnapshot=null;
+  clearCampaignTerrain([index]);
   grid[index]=false;
   activePower=null;
   document.body.classList.remove("hammer-mode");
@@ -1374,6 +1377,188 @@ function scorePop(text){
   pop.style.transform="translateX(-50%)";
   fxLayer.appendChild(pop);
   pop.addEventListener("animationend",()=>pop.remove());
+}
+
+function seededCampaignIndexes(level,count){
+  let seed=(level*9301+49297)%233280;
+  const random=()=>{
+    seed=(seed*9301+49297)%233280;
+    return seed/233280;
+  };
+  const indexes=Array.from({length:SIZE*SIZE},(_,index)=>index);
+  for(let i=indexes.length-1;i>0;i--){
+    const j=Math.floor(random()*(i+1));
+    [indexes[i],indexes[j]]=[indexes[j],indexes[i]];
+  }
+  return indexes.slice(0,count);
+}
+
+function setupCampaignBoard(){
+  const config=CAMPAIGN_LEVELS[currentCampaignLevel-1];
+  if(!config) return;
+  movesRemaining=config.moves;
+  levelProgress={lines:0,ice:0,locks:0};
+  const indexes=seededCampaignIndexes(currentCampaignLevel,config.locks+config.ice);
+  indexes.slice(0,config.locks).forEach(index=>{
+    lockedCells[index]=true;
+    grid[index]=true;
+  });
+  indexes.slice(config.locks).forEach(index=>iceCells[index]=true);
+  renderCampaignHud();
+}
+
+function clearCampaignTerrain(indexes){
+  if(currentMode!=="level") return;
+  indexes.forEach(index=>{
+    if(lockedCells[index]){
+      lockedCells[index]=false;
+      levelProgress.locks++;
+    }
+    if(iceCells[index]){
+      iceCells[index]=false;
+      levelProgress.ice++;
+    }
+  });
+  renderCampaignHud();
+}
+
+function campaignObjectiveParts(){
+  const config=CAMPAIGN_LEVELS[currentCampaignLevel-1];
+  if(!config) return [];
+  const parts=[score.toLocaleString()+"/"+config.score.toLocaleString()+" score"];
+  if(config.lines) parts.push(levelProgress.lines+"/"+config.lines+" lines");
+  if(config.ice) parts.push(levelProgress.ice+"/"+config.ice+" ice");
+  if(config.locks) parts.push(levelProgress.locks+"/"+config.locks+" locks");
+  return parts;
+}
+
+function campaignObjectivesMet(){
+  const config=CAMPAIGN_LEVELS[currentCampaignLevel-1];
+  if(!config) return false;
+  return score>=config.score&&
+    levelProgress.lines>=config.lines&&
+    levelProgress.ice>=config.ice&&
+    levelProgress.locks>=config.locks;
+}
+
+function renderCampaignHud(){
+  const config=CAMPAIGN_LEVELS[currentCampaignLevel-1];
+  if(!config) return;
+  $("#campaignLevelValue").textContent=currentCampaignLevel;
+  $("#movesValue").textContent=movesRemaining;
+  $("#movesValue").classList.toggle("danger",currentMode==="level"&&movesRemaining<=3);
+  $("#objectiveText").textContent=campaignObjectiveParts().join(" • ");
+}
+
+function campaignStars(){
+  const config=CAMPAIGN_LEVELS[currentCampaignLevel-1];
+  const ratio=movesRemaining/Math.max(1,config.moves);
+  return ratio>=.42?3:ratio>=.18?2:1;
+}
+
+function finishCampaignLevel(success,reason=""){
+  if(gameOver) return;
+  gameOver=true;
+  paused=true;
+  document.body.classList.add("game-paused");
+  activeDrag?.ghost?.remove();
+  activeDrag=null;
+  const config=CAMPAIGN_LEVELS[currentCampaignLevel-1];
+  const oldStars=Number(profile.campaign.stars[currentCampaignLevel]||0);
+  const stars=success?campaignStars():0;
+  let reward=0;
+  if(success){
+    const improvement=Math.max(0,stars-oldStars);
+    profile.campaign.stars[currentCampaignLevel]=Math.max(oldStars,stars);
+    profile.campaign.best[currentCampaignLevel]=Math.max(Number(profile.campaign.best[currentCampaignLevel]||0),score);
+    profile.campaign.unlocked=Math.max(profile.campaign.unlocked,Math.min(30,currentCampaignLevel+1));
+    reward=8+currentCampaignLevel+improvement*7;
+    profile.coins+=reward;
+    addXP(12+currentCampaignLevel*2);
+  }
+  recordProgress({games:1});
+  $("#levelResultEyebrow").textContent=success?"LEVEL COMPLETE":"OUT OF MOVES";
+  $("#levelResultTitle").textContent=success?"FORGED!":"TRY AGAIN";
+  $("#levelResultStars").innerHTML=[1,2,3].map(value=>`<span class="${value<=stars?"earned":""}">★</span>`).join("");
+  $("#levelResultScore").textContent=score.toLocaleString();
+  $("#levelResultText").textContent=success
+    ?"+"+reward+" coins • "+campaignObjectiveParts().join(" • ")
+    :(reason==="moves"?"The objectives were not completed in "+config.moves+" moves.":"No available blocks remain.");
+  $("#nextLevelBtn").hidden=!success||currentCampaignLevel>=30;
+  $("#levelCompleteModal").classList.add("open");
+  $("#levelCompleteModal").setAttribute("aria-hidden","false");
+  playSfx(success?"achievement":"gameover");
+  saveProfile();
+  renderMenu();
+}
+
+function renderLevelSelect(){
+  const gridEl=$("#levelSelectGrid");
+  if(!gridEl) return;
+  gridEl.innerHTML="";
+  let total=0;
+  CAMPAIGN_LEVELS.forEach(config=>{
+    const stars=Number(profile.campaign.stars[config.level]||0);
+    total+=stars;
+    const unlocked=config.level<=profile.campaign.unlocked;
+    const button=document.createElement("button");
+    button.type="button";
+    button.className="campaign-level"+(unlocked?" unlocked":" locked")+(stars?" completed":"");
+    button.disabled=!unlocked;
+    button.dataset.level=config.level;
+    button.innerHTML=`<strong>${unlocked?config.level:"🔒"}</strong><span>${[1,2,3].map(value=>value<=stars?"★":"☆").join("")}</span><small>${config.moves} MOVES</small>`;
+    gridEl.appendChild(button);
+  });
+  $("#totalCampaignStars").textContent=total;
+}
+
+function openLevelSelect(){
+  renderLevelSelect();
+  $("#levelSelectModal").classList.add("open");
+  $("#levelSelectModal").setAttribute("aria-hidden","false");
+}
+
+function closeLevelSelect(){
+  $("#levelSelectModal").classList.remove("open");
+  $("#levelSelectModal").setAttribute("aria-hidden","true");
+}
+
+function startCampaignLevel(level){
+  if(level>profile.campaign.unlocked||level<1||level>30) return;
+  currentCampaignLevel=level;
+  $("#levelSelectModal").classList.remove("open");
+  $("#mainMenuModal").classList.remove("open");
+  startMode("level");
+}
+
+function openTutorial(force=false){
+  if(profile.tutorialSeen&&!force) return;
+  tutorialStep=0;
+  renderTutorial();
+  $("#tutorialModal").classList.add("open");
+  $("#tutorialModal").setAttribute("aria-hidden","false");
+}
+
+function renderTutorial(){
+  const step=TUTORIAL_STEPS[tutorialStep];
+  $("#tutorialIcon").textContent=step.icon;
+  $("#tutorialTitle").textContent=step.title;
+  $("#tutorialText").textContent=step.text;
+  $("#tutorialDots").innerHTML=TUTORIAL_STEPS.map((_,index)=>`<i class="${index===tutorialStep?"active":""}"></i>`).join("");
+  $("#tutorialNextBtn").textContent=tutorialStep===TUTORIAL_STEPS.length-1?"LET'S FORGE":"NEXT";
+}
+
+function finishTutorial(){
+  profile.tutorialSeen=true;
+  saveProfile();
+  $("#tutorialModal").classList.remove("open");
+  $("#tutorialModal").setAttribute("aria-hidden","true");
+}
+
+function nextTutorial(){
+  if(tutorialStep>=TUTORIAL_STEPS.length-1){finishTutorial();return}
+  tutorialStep++;
+  renderTutorial();
 }
 
 function afterTurn(){
@@ -1550,6 +1735,8 @@ function openMainMenu(){
   document.body.classList.add("game-paused");
   gameOverModal.classList.remove("open");
   $("#pauseModal").classList.remove("open");
+  $("#levelCompleteModal").classList.remove("open");
+  $("#levelSelectModal").classList.remove("open");
   renderMenu();
   $("#mainMenuModal").classList.add("open");
   $("#mainMenuModal").setAttribute("aria-hidden","false");
@@ -1593,6 +1780,9 @@ async function toggleFullscreen(){
 
 function openSettings(){
   $("#vibrationToggle").checked=profile.vibration;
+  $("#colorblindToggle").checked=profile.colorblind;
+  $("#effectIntensity").value=profile.effectIntensity;
+  $("#musicStyle").value=profile.musicStyle;
   $("#settingsModal").classList.add("open");
   $("#settingsModal").setAttribute("aria-hidden","false");
 }
@@ -1623,6 +1813,22 @@ function setupModes(){
     if(profile.vibration&&navigator.vibrate) navigator.vibrate(18);
     showToast(profile.vibration?"Vibration on":"Vibration off");
   });
+  $("#colorblindToggle").addEventListener("change",event=>{
+    profile.colorblind=event.target.checked;
+    applyCosmetics();saveProfile();renderBoard();
+    showToast(profile.colorblind?"Color blind mode on":"Color blind mode off");
+  });
+  $("#effectIntensity").addEventListener("change",event=>{
+    profile.effectIntensity=event.target.value;
+    applyCosmetics();saveProfile();
+    showToast("Effects: "+profile.effectIntensity);
+  });
+  $("#musicStyle").addEventListener("change",event=>{
+    profile.musicStyle=event.target.value;
+    musicStep=0;startMusicLoop();saveProfile();
+    showToast("Soundtrack: "+profile.musicStyle);
+  });
+  $("#replayTutorialBtn").addEventListener("click",()=>{closeSettings();openTutorial(true)});
   $("#settingsModal").addEventListener("pointerdown",event=>{
     if(event.target===$("#settingsModal")) closeSettings();
   });
@@ -1656,6 +1862,23 @@ function setupV07(){
   });
   $("#levelRoadModal").addEventListener("pointerdown",event=>{
     if(event.target===$("#levelRoadModal")) closeLevelRoad();
+  });
+  $("#levelsModeBtn").addEventListener("click",openLevelSelect);
+  $("#closeLevelSelectBtn").addEventListener("click",closeLevelSelect);
+  $("#levelSelectGrid").addEventListener("click",event=>{
+    const button=event.target.closest("button[data-level]");
+    if(button) startCampaignLevel(Number(button.dataset.level));
+  });
+  $("#nextLevelBtn").addEventListener("click",()=>startCampaignLevel(Math.min(30,currentCampaignLevel+1)));
+  $("#retryLevelBtn").addEventListener("click",restartGame);
+  $("#levelResultMenuBtn").addEventListener("click",()=>{
+    $("#levelCompleteModal").classList.remove("open");
+    gameOver=false;openLevelSelect();
+  });
+  $("#tutorialNextBtn").addEventListener("click",nextTutorial);
+  $("#tutorialSkipBtn").addEventListener("click",finishTutorial);
+  $("#levelSelectModal").addEventListener("pointerdown",event=>{
+    if(event.target===$("#levelSelectModal")) closeLevelSelect();
   });
 }
 
@@ -1964,13 +2187,17 @@ function init(){
   updateModeUi();
   renderMenu();
   openMainMenu();
+  setTimeout(()=>openTutorial(),260);
 
   $("#restartBtn").addEventListener("click",restartGame);
   $("#playAgainBtn").addEventListener("click",restartGame);
   document.addEventListener("pointerdown",unlockAudio,{once:true});
   document.addEventListener("keydown",event=>{
     if(event.key==="Escape"){
-      if($("#levelRoadModal").classList.contains("open")) closeLevelRoad();
+      if($("#tutorialModal").classList.contains("open")) finishTutorial();
+      else if($("#levelCompleteModal").classList.contains("open")) openMainMenu();
+      else if($("#levelSelectModal").classList.contains("open")) closeLevelSelect();
+      else if($("#levelRoadModal").classList.contains("open")) closeLevelRoad();
       else if($("#dailyRewardModal").classList.contains("open")) closeDailyReward();
       else if($("#achievementsModal").classList.contains("open")) closeAchievements();
       else if($("#settingsModal").classList.contains("open")) closeSettings();
