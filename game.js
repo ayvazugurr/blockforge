@@ -803,8 +803,6 @@ function addXP(amount){
     showToast("Level up! +"+coins+" coins"+(chest?" + booster":""));
     playSfx(chest?"daily":"level");
     if(unlocks.length) setTimeout(()=>showToast(unlocks.join(", ")+" unlocked"),900);
-    profile.missions=[];
-    ensureMissions();
   }
   saveProfile();
   updateHud();
@@ -1877,6 +1875,7 @@ function setupShop(){
 
 function init(){
   syncLevelUnlocks();
+  saveProfile();
   applyCosmetics();
   makeBoard();
   renderBoard();
