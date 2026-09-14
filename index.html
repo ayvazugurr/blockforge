@@ -4,10 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <meta name="theme-color" content="#07111f">
+  <meta name="description" content="Build, clear and forge your way through BlockForge — an offline-ready block puzzle.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BlockForge">
+  <meta name="format-detection" content="telephone=no">
   <title>BlockForge</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-theme="midnight" data-skin="forge">
+  <div id="splashScreen" class="splash-screen" aria-hidden="true">
+    <div class="splash-logo"><span>BF</span></div>
+    <h1>BLOCKFORGE</h1>
+    <p>BUILD • CLEAR • EARN</p>
+    <i></i>
+  </div>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
 
@@ -144,6 +159,7 @@
         <button id="dailyRewardBtn" class="secondary-btn reward-menu-btn" type="button">🎁 DAILY REWARD</button>
         <button id="achievementsBtn" class="secondary-btn" type="button">★ ACHIEVEMENTS</button>
         <button id="levelRoadBtn" class="secondary-btn level-road-btn" type="button">♛ LEVEL ROAD</button>
+        <button id="installAppBtn" class="secondary-btn install-btn" type="button" hidden>⬇ INSTALL APP</button>
       </div>
     </div>
   </div>
@@ -260,6 +276,12 @@
         </select>
       </label>
       <button id="replayTutorialBtn" class="secondary-btn" type="button">REPLAY TUTORIAL</button>
+      <div class="save-tools">
+        <button id="exportSaveBtn" class="secondary-btn" type="button">EXPORT SAVE</button>
+        <button id="importSaveBtn" class="secondary-btn" type="button">IMPORT SAVE</button>
+        <input id="importSaveFile" type="file" accept="application/json,.json" hidden>
+      </div>
+      <p id="saveStatus" class="save-status">Save schema v1 • automatic recovery enabled</p>
       <button id="settingsFullscreenBtn" class="secondary-btn" type="button">TOGGLE FULLSCREEN</button>
       <p class="shop-note">Music and effect volumes can be changed below the game board.</p>
     </div>
