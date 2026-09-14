@@ -184,6 +184,72 @@ input[type="range"]::-webkit-slider-thumb{appearance:none;width:15px;height:15px
 .buy-btn.selected{color:#06101d;background:var(--good)}
 .buy-btn:disabled{opacity:.46;cursor:not-allowed;transform:none}
 .shop-note{text-align:center;color:var(--muted);font-size:9px;margin:13px 0 0}
+.level-card{
+  margin:-4px 0 12px;padding:10px 13px;border:1px solid var(--line);border-radius:14px;
+  background:var(--panel);backdrop-filter:blur(10px)
+}
+.level-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.level-row strong{font:700 11px Orbitron;color:var(--accent);letter-spacing:.08em}
+.level-row>span{font-size:9px;color:var(--muted);font-weight:700}
+.xp-track,.mission-track{height:6px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
+.xp-track i,.mission-track i{display:block;height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--accent2),var(--accent));box-shadow:0 0 12px var(--blockGlow);transition:width .4s ease}
+.combo-callout{
+  position:absolute;left:50%;top:48%;z-index:20;pointer-events:none;text-align:center;
+  font:800 clamp(22px,7vw,38px) Orbitron;color:#fff;white-space:nowrap;
+  text-shadow:0 3px 0 var(--accent2),0 0 24px var(--accent),0 8px 30px rgba(0,0,0,.7);
+  opacity:0;transform:translate(-50%,-50%) scale(.55)
+}
+.combo-callout.show{animation:comboCall .9s cubic-bezier(.2,1.5,.35,1)}
+.board-wrap.shake .board{animation:boardShake .34s ease}
+.missions-card{
+  margin-top:13px;padding:14px;border:1px solid var(--line);border-radius:17px;
+  background:var(--panel);backdrop-filter:blur(10px)
+}
+.missions-card header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.missions-card h2{font:800 15px Orbitron;margin:3px 0 0;letter-spacing:.05em}
+#missionCycle{font:700 9px Orbitron;color:var(--muted);border:1px solid var(--line);padding:6px 8px;border-radius:999px}
+.missions-list{display:grid;gap:8px}
+.mission{
+  display:grid;grid-template-columns:34px 1fr auto;gap:9px;align-items:center;
+  padding:9px;border:1px solid rgba(150,195,255,.09);border-radius:13px;background:rgba(255,255,255,.025)
+}
+.mission-icon{
+  width:34px;height:34px;border-radius:11px;display:grid;place-items:center;
+  background:rgba(69,199,255,.1);color:var(--accent);font-weight:800
+}
+.mission-copy strong{display:block;font-size:10px;margin-bottom:6px}
+.mission-progress{display:flex;align-items:center;gap:7px}
+.mission-track{height:4px;flex:1}
+.mission-progress span{font-size:8px;color:var(--muted);min-width:34px;text-align:right}
+.mission-reward{font-size:9px;color:var(--gold);font-weight:800;text-align:right}
+.mission.done{border-color:rgba(72,242,177,.3);background:rgba(72,242,177,.055)}
+.mission.done .mission-icon{background:var(--good);color:#06120d}
+.new-missions-btn{font-size:10px;margin-top:10px}
+.tray-block.bomb .mini-cell,.drag-ghost.bomb .ghost-cell{
+  background:radial-gradient(circle at 36% 30%,#fff5a0 0 7%,#ffbd43 18%,#ff4c66 58%,#6f2cff 100%);
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.55),0 0 18px rgba(255,98,76,.75);
+  animation:bombPulse 1.05s ease-in-out infinite
+}
+.tray-block.bomb:after{
+  content:"BOMB";position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);
+  font:700 7px Orbitron;color:#ffbf52;letter-spacing:.12em
+}
+.item-preview{cursor:pointer;transition:transform .2s,filter .2s}
+.item-preview:hover{transform:scale(1.025);filter:brightness(1.12)}
+.item-preview:active{transform:scale(.97)}
+@keyframes comboCall{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.45) rotate(-5deg)}
+  20%,68%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}
+  100%{opacity:0;transform:translate(-50%,-72%) scale(1.12)}
+}
+@keyframes boardShake{
+  0%,100%{transform:translate3d(0,0,0)}
+  20%{transform:translate3d(-5px,2px,0)}
+  40%{transform:translate3d(5px,-2px,0)}
+  60%{transform:translate3d(-3px,1px,0)}
+  80%{transform:translate3d(3px,0,0)}
+}
+@keyframes bombPulse{50%{filter:brightness(1.35);transform:scale(1.06)}}
 @keyframes trayEnter{
   0%{opacity:0;transform:translateY(18px) scale(.82);filter:brightness(1.8)}
   65%{opacity:1;transform:translateY(-3px) scale(1.035);filter:brightness(1.16)}
