@@ -59,6 +59,22 @@ const PLAYER_TITLES = [
   {level:25,name:"Forge Legend"}
 ];
 
+const CAMPAIGN_LEVELS = Array.from({length:30},(_,index)=>{
+  const level=index+1;
+  if(level<=5) return {level,moves:16+level,score:260+level*120,lines:0,ice:0,locks:0};
+  if(level<=10) return {level,moves:21+Math.floor(level/2),score:500+level*75,lines:1+Math.floor((level-5)/2),ice:0,locks:0};
+  if(level<=15) return {level,moves:24+Math.floor((level-10)/2),score:650+level*70,lines:2,ice:3+(level-10),locks:0};
+  if(level<=20) return {level,moves:26+Math.floor((level-15)/2),score:800+level*65,lines:2+Math.floor((level-15)/2),ice:2,locks:2+(level-15)};
+  return {level,moves:29+Math.floor((level-20)/2),score:1100+level*70,lines:4+Math.floor((level-20)/3),ice:5+Math.floor((level-20)/2),locks:4+Math.floor((level-20)/2)};
+});
+
+const TUTORIAL_STEPS = [
+  {icon:"▦",title:"PLACE BLOCKS",text:"Drag a shape onto the board. The highlighted cells show exactly where it will land."},
+  {icon:"✦",title:"CLEAR LINES",text:"Fill a complete row or column to clear it, score points and earn coins."},
+  {icon:"❄",title:"LEVEL OBJECTS",text:"Place on icy cells to break them. Locked blocks must be removed by completing their row or column."},
+  {icon:"⚡",title:"USE YOUR TOOLS",text:"Hammer, Shuffle, Undo and Second Chance can rescue a difficult board."}
+];
+
 const DAILY_REWARDS = [
   {coins:10,label:"● 10",icon:"●"},
   {coins:15,label:"● 15",icon:"●"},
@@ -138,8 +154,10 @@ const MISSION_DEFS = [
 
 const defaults = {
   coins:0,best:0,musicOn:true,musicVolume:.32,sfxVolume:.72,vibration:true,
+  effectIntensity:"normal",colorblind:false,musicStyle:"ambient",tutorialSeen:false,
   level:1,xp:0,missionCycle:1,missions:[],
   progression:{claimedLevels:[]},
+  campaign:{unlocked:1,stars:{},best:{}},
   modeBests:{classic:0,timed:0,zen:0},
   powers:{hammer:1,shuffle:1,undo:1,secondChance:1},
   daily:{lastClaim:"",streak:0,lastSeen:""},
@@ -178,6 +196,11 @@ function loadProfile(){
           ?stored.progression.claimedLevels
           :Array.from({length:Math.max(0,Number(stored.level||1)-1)},(_,index)=>index+2)
       },
+      campaign:{
+        unlocked:Math.max(1,Math.min(30,Number(stored.campaign?.unlocked||1))),
+        stars:{...(stored.campaign?.stars||{})},
+        best:{...(stored.campaign?.best||{})}
+      },
       modeBests:{
         classic:Number(stored.modeBests?.classic??stored.best??0),
         timed:Number(stored.modeBests?.timed??0),
@@ -204,6 +227,12 @@ let lastTimerTick = 0;
 let lastGameOverReason = "full";
 let activePower = null;
 let lastMoveSnapshot = null;
+let currentCampaignLevel = 1;
+let movesRemaining = 0;
+let levelProgress = {lines:0,ice:0,locks:0};
+let iceCells = Array(SIZE*SIZE).fill(false);
+let lockedCells = Array(SIZE*SIZE).fill(false);
+let tutorialStep = 0;
 let activeDrag = null;
 let previewIndexes = [];
 let toastTimer = null;
@@ -234,6 +263,8 @@ function applyCosmetics(){
   const palette = PALETTES[profile.selected.palette] || PALETTES.ocean;
   document.body.dataset.theme = profile.selected.theme;
   document.body.dataset.skin = profile.selected.skin;
+  document.body.dataset.effects = profile.effectIntensity;
+  document.body.dataset.colorblind = profile.colorblind?"on":"off";
   document.documentElement.style.setProperty("--block1",palette.one);
   document.documentElement.style.setProperty("--block2",palette.two);
   document.documentElement.style.setProperty("--blockGlow",palette.glow);
@@ -280,7 +311,8 @@ function makeBoard(){
 
 function renderBoard(){
   cells.forEach((cell,i)=>{
-    cell.className = "cell" + (grid[i] ? " filled" : "");
+    cell.className="cell"+(grid[i]?" filled":"")+(iceCells[i]?" ice":"")+(lockedCells[i]?" locked":"");
+    cell.dataset.symbol=lockedCells[i]?"🔒":iceCells[i]?"❄":grid[i]?"◆":"";
   });
   previewIndexes = [];
 }
@@ -574,6 +606,17 @@ function placeShape(entry,row,col){
     placed.push(index);
   });
   entry.used=true;
+  if(currentMode==="level"){
+    movesRemaining=Math.max(0,movesRemaining-1);
+    placed.forEach(index=>{
+      if(iceCells[index]){
+        iceCells[index]=false;
+        levelProgress.ice++;
+        burstAt(index,7);
+      }
+    });
+    renderCampaignHud();
+  }
   const placementScore=entry.shape.cells.length*10;
   score+=placementScore;
   commitBest();
@@ -636,7 +679,9 @@ function clearLines(lines){
   playSfx("clear",lineCount);
   if(profile.vibration&&navigator.vibrate) navigator.vibrate([20,25,32]);
   setTimeout(()=>{
+    clearCampaignTerrain(unique);
     unique.forEach(i=>grid[i]=false);
+    if(currentMode==="level") levelProgress.lines+=lineCount;
     score+=bonus;
     profile.coins+=earned;
     commitBest();
@@ -1176,7 +1221,10 @@ function snapshotMove(){
   lastMoveSnapshot={
     grid:[...grid],
     tray:structuredClone(tray),
-    score,combo,
+    score,combo,movesRemaining,
+    levelProgress:structuredClone(levelProgress),
+    iceCells:[...iceCells],
+    lockedCells:[...lockedCells],
     profileState:{
       coins:profile.coins,
       best:profile.best,
@@ -1227,6 +1275,10 @@ function usePower(power){
     tray=structuredClone(snapshot.tray);
     score=snapshot.score;
     combo=snapshot.combo;
+    movesRemaining=snapshot.movesRemaining;
+    levelProgress=structuredClone(snapshot.levelProgress);
+    iceCells=[...snapshot.iceCells];
+    lockedCells=[...snapshot.lockedCells];
     profile.coins=snapshot.profileState.coins;
     profile.best=snapshot.profileState.best;
     profile.level=snapshot.profileState.level;
@@ -1240,7 +1292,7 @@ function usePower(power){
     profile.stats.powersUsed++;
     lastMoveSnapshot=null;
     saveProfile();
-    renderBoard();renderTray();renderMissions();renderDailyMissions();renderAchievements();updateHud();
+    renderBoard();renderTray();renderMissions();renderDailyMissions();renderAchievements();renderCampaignHud();updateHud();
     playSfx("power");
     showToast("Last move restored");
   }else if(power==="secondChance"){
@@ -1325,6 +1377,11 @@ function scorePop(text){
 }
 
 function afterTurn(){
+  if(currentMode==="level"){
+    renderCampaignHud();
+    if(campaignObjectivesMet()){finishCampaignLevel(true);return}
+    if(movesRemaining<=0){finishCampaignLevel(false,"moves");return}
+  }
   if(tray.every(entry=>entry.used)){
     generateTray();
     if(gameOver) return;
@@ -1341,6 +1398,8 @@ function checkGameOver(){
 function handleNoMoves(){
   if(currentMode==="zen"){
     zenRescue();
+  }else if(currentMode==="level"){
+    finishCampaignLevel(false,"moves");
   }else{
     endGame("full");
   }
@@ -1399,6 +1458,9 @@ function restartGame(){
   document.body.classList.remove("hammer-mode");
   unlockAudio();
   grid=Array(SIZE*SIZE).fill(false);
+  iceCells=Array(SIZE*SIZE).fill(false);
+  lockedCells=Array(SIZE*SIZE).fill(false);
+  levelProgress={lines:0,ice:0,locks:0};
   tray=[];
   score=0;
   combo=0;
@@ -1412,24 +1474,28 @@ function restartGame(){
   gameOverModal.setAttribute("aria-hidden","true");
   $("#pauseModal").classList.remove("open");
   $("#pauseModal").setAttribute("aria-hidden","true");
+  $("#levelCompleteModal").classList.remove("open");
+  if(currentMode==="level") setupCampaignBoard();
   renderBoard();
   updateModeUi();
   resetModeTimer();
   updateHud();
   generateTray();
-  showToast(currentMode.toUpperCase()+" mode started");
+  showToast(currentMode==="level"?"Level "+currentCampaignLevel+" started":currentMode.toUpperCase()+" mode started");
   playSfx("restart");
 }
 
 function isBlockingOverlayOpen(){
-  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal","#dailyRewardModal","#achievementsModal","#levelRoadModal"]
+  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal","#dailyRewardModal","#achievementsModal","#levelRoadModal","#levelSelectModal","#levelCompleteModal","#tutorialModal"]
     .some(selector=>$(selector).classList.contains("open"));
 }
 
 function updateModeUi(){
-  const label=(currentMode||"classic").toUpperCase();
+  const label=currentMode==="level"?"LEVEL "+currentCampaignLevel:(currentMode||"classic").toUpperCase();
   $("#modeBadge").textContent=label;
   $("#timerDisplay").hidden=currentMode!=="timed";
+  $("#levelObjectiveHud").hidden=currentMode!=="level";
+  renderCampaignHud();
   updateTimerDisplay();
 }
 
@@ -1472,6 +1538,8 @@ function renderMenu(){
   $("#classicBest").textContent=Number(profile.modeBests.classic||0).toLocaleString();
   $("#timedBest").textContent=Number(profile.modeBests.timed||0).toLocaleString();
   $("#zenBest").textContent=Number(profile.modeBests.zen||0).toLocaleString();
+  $("#campaignProgress").textContent=profile.campaign.unlocked+" / 30";
+  renderLevelSelect();
 }
 
 function openMainMenu(){
