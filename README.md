@@ -1,4 +1,17 @@
-# BlockForge v1.0
+# BlockForge v1.0.1 — player-test patch
+
+## 1.0.1 changes
+
+- Saves coalesced over 180 ms, flushed immediately on page hide / background.
+- Hidden achievements and level-road panels no longer rebuilt on every move.
+- Visible mission renders skipped when their displayed data has not changed.
+- Shape packs can be enabled/disabled; new purchases start disabled and old ownership is preserved.
+- First-clear and improved-star bonuses retained; unchanged campaign replays no longer repeat completion coin/XP bonuses. Normal gameplay earnings remain.
+- Existing prices unchanged; Ember (240), Holo (360), Nebula (320), Foundry (450) added as longer-term cosmetic goals.
+- Pointer cancellation and extra-pointer handling hardened.
+- Versioned offline cache waits for existing tabs to close before activation.
+
+Validation: automated logic checks cover economy, pack migration, active shapes, coalesced saves and corrupted-save recovery. Syntax and DOM references checked. Browser/device FPS, touch, install and offline end-to-end tests still require testing; this patch is intended for a small player test before broad release.
 
 A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
