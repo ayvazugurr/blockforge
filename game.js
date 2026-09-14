@@ -767,6 +767,296 @@ function detonateBomb(row,col){
   },520);
 }
 
+function localDateKey(date=new Date()){
+  const y=date.getFullYear();
+  const m=String(date.getMonth()+1).padStart(2,"0");
+  const d=String(date.getDate()).padStart(2,"0");
+  return y+"-"+m+"-"+d;
+}
+
+function previousDateKey(key){
+  const [y,m,d]=key.split("-").map(Number);
+  const date=new Date(y,m-1,d);
+  date.setDate(date.getDate()-1);
+  return localDateKey(date);
+}
+
+function dailyAvailable(){
+  const today=localDateKey();
+  return today>=(profile.daily.lastSeen||"")&&profile.daily.lastClaim!==today;
+}
+
+function ensureDailyContent(){
+  const today=localDateKey();
+  if(!profile.daily.lastSeen||today>profile.daily.lastSeen) profile.daily.lastSeen=today;
+  if(profile.dailyMissions.date===today&&profile.dailyMissions.items.length) return;
+  const seed=Number(today.replaceAll("-",""));
+  const chosen=[];
+  for(let i=0;i<3;i++){
+    let index=(seed+i*3+i*i)%DAILY_MISSION_DEFS.length;
+    while(chosen.some(item=>item.type===DAILY_MISSION_DEFS[index].type)){
+      index=(index+1)%DAILY_MISSION_DEFS.length;
+    }
+    const def=DAILY_MISSION_DEFS[index];
+    chosen.push({...def,start:Number(profile.stats[def.type]||0),done:false});
+  }
+  profile.dailyMissions={date:today,items:chosen};
+  saveProfile();
+}
+
+function renderDailyMissions(){
+  ensureDailyContent();
+  $("#dailyDate").textContent=profile.dailyMissions.date.slice(5).replace("-","/");
+  const list=$("#dailyMissionsList");
+  list.innerHTML="";
+  profile.dailyMissions.items.forEach(mission=>{
+    const progress=Math.min(mission.target,Math.max(0,Number(profile.stats[mission.type]||0)-mission.start));
+    const item=document.createElement("article");
+    item.className="mission"+(mission.done?" done":"");
+    item.innerHTML=`
+      <span class="mission-icon">${mission.done?"✓":mission.icon}</span>
+      <div class="mission-copy">
+        <strong>${mission.label}</strong>
+        <div class="mission-progress">
+          <span class="mission-track"><i style="width:${progress/mission.target*100}%"></i></span>
+          <span>${progress}/${mission.target}</span>
+        </div>
+      </div>
+      <span class="mission-reward">● ${mission.coins}<br>+${mission.xp} XP</span>`;
+    list.appendChild(item);
+  });
+}
+
+function checkDailyMissions(){
+  ensureDailyContent();
+  const completed=[];
+  profile.dailyMissions.items.forEach(mission=>{
+    const progress=Number(profile.stats[mission.type]||0)-mission.start;
+    if(!mission.done&&progress>=mission.target){
+      mission.done=true;
+      profile.coins+=mission.coins;
+      completed.push(mission);
+    }
+  });
+  if(completed.length){
+    addXP(completed.reduce((sum,mission)=>sum+mission.xp,0));
+    playSfx("mission");
+    showToast("Daily mission complete!");
+  }
+  saveProfile();
+  renderDailyMissions();
+}
+
+function renderDailyReward(){
+  const today=localDateKey();
+  const available=dailyAvailable();
+  const nextStreak=profile.daily.lastClaim===previousDateKey(today)?profile.daily.streak+1:1;
+  const activeDay=((nextStreak-1)%7)+1;
+  $("#streakText").textContent="DAY "+Math.max(1,profile.daily.streak||activeDay)+" STREAK";
+  const calendar=$("#rewardCalendar");
+  calendar.innerHTML="";
+  DAILY_REWARDS.forEach((reward,index)=>{
+    const day=index+1;
+    const tile=document.createElement("div");
+    tile.className="reward-day"+(day<activeDay?" claimed":"")+(day===activeDay?" today":"");
+    tile.innerHTML=`<span>DAY ${day}</span><strong>${reward.icon}</strong><b>${reward.label}</b>`;
+    calendar.appendChild(tile);
+  });
+  $("#claimDailyBtn").disabled=!available;
+  $("#claimDailyBtn").textContent=available?"CLAIM TODAY":"CLAIMED";
+  $("#dailyRewardStatus").textContent=available?"Come back every day to grow your streak.":"Today's reward has already been claimed.";
+  $("#dailyRewardBtn").classList.toggle("ready",available);
+}
+
+function claimDailyReward(){
+  if(!dailyAvailable()){showToast("Today's reward is already claimed");return}
+  const today=localDateKey();
+  profile.daily.streak=profile.daily.lastClaim===previousDateKey(today)?profile.daily.streak+1:1;
+  profile.daily.lastClaim=today;
+  profile.daily.lastSeen=today;
+  const reward=DAILY_REWARDS[(profile.daily.streak-1)%7];
+  if(reward.coins) profile.coins+=reward.coins;
+  if(reward.power) profile.powers[reward.power]+=reward.amount||1;
+  addXP(10+profile.daily.streak*2);
+  saveProfile();
+  updateHud();
+  renderDailyReward();
+  playSfx("daily");
+  showComboCallout("DAY "+profile.daily.streak);
+  showToast("Daily reward claimed!");
+}
+
+function openDailyReward(){
+  ensureDailyContent();
+  renderDailyReward();
+  $("#dailyRewardModal").classList.add("open");
+  $("#dailyRewardModal").setAttribute("aria-hidden","false");
+}
+
+function closeDailyReward(){
+  $("#dailyRewardModal").classList.remove("open");
+  $("#dailyRewardModal").setAttribute("aria-hidden","true");
+  lastTimerTick=performance.now();
+}
+
+function achievementValue(def){
+  if(def.type==="best") return Number(profile.best||0);
+  if(def.type==="timedBest") return Number(profile.modeBests.timed||0);
+  return Number(profile.stats[def.type]||0);
+}
+
+function renderAchievements(){
+  const list=$("#achievementsList");
+  list.innerHTML="";
+  ACHIEVEMENT_DEFS.forEach(def=>{
+    const value=Math.min(def.target,achievementValue(def));
+    const unlocked=Boolean(profile.achievements[def.id]);
+    const item=document.createElement("article");
+    item.className="achievement"+(unlocked?" unlocked":"");
+    item.innerHTML=`
+      <span class="achievement-icon">${unlocked?"✓":def.icon}</span>
+      <div class="achievement-copy">
+        <strong>${def.name}</strong><small>${def.desc}</small>
+        <span class="mission-track"><i style="width:${value/def.target*100}%"></i></span>
+      </div>
+      <span class="achievement-reward">${value}/${def.target}<br>● ${def.coins} + ${def.xp}XP</span>`;
+    list.appendChild(item);
+  });
+}
+
+function checkAchievements(){
+  const unlocked=[];
+  ACHIEVEMENT_DEFS.forEach(def=>{
+    if(!profile.achievements[def.id]&&achievementValue(def)>=def.target){
+      profile.achievements[def.id]=true;
+      profile.coins+=def.coins;
+      unlocked.push(def);
+    }
+  });
+  if(unlocked.length){
+    addXP(unlocked.reduce((sum,def)=>sum+def.xp,0));
+    playSfx("achievement");
+    showComboCallout("ACHIEVEMENT!");
+    showToast(unlocked[0].name+" unlocked");
+  }
+  saveProfile();
+  renderAchievements();
+}
+
+function openAchievements(){
+  renderAchievements();
+  $("#achievementsModal").classList.add("open");
+  $("#achievementsModal").setAttribute("aria-hidden","false");
+}
+
+function closeAchievements(){
+  $("#achievementsModal").classList.remove("open");
+  $("#achievementsModal").setAttribute("aria-hidden","true");
+  lastTimerTick=performance.now();
+}
+
+function updatePowerHud(){
+  Object.keys(profile.powers).forEach(power=>{
+    const count=$("#"+power+"Count");
+    if(count) count.textContent=profile.powers[power];
+    const button=document.querySelector('[data-power="'+power+'"]');
+    if(button) button.disabled=profile.powers[power]<=0||!currentMode||gameOver;
+  });
+  $("#gameOverReviveCount").textContent=profile.powers.secondChance;
+  $("#secondChanceBtn").disabled=profile.powers.secondChance<=0||lastGameOverReason==="time";
+}
+
+function snapshotMove(){
+  lastMoveSnapshot={
+    grid:[...grid],
+    tray:structuredClone(tray),
+    score,combo
+  };
+}
+
+function consumePower(power){
+  if(profile.powers[power]<=0) return false;
+  profile.powers[power]--;
+  profile.stats.powersUsed++;
+  saveProfile();
+  updatePowerHud();
+  checkDailyMissions();
+  return true;
+}
+
+function usePower(power){
+  unlockAudio();
+  if(!currentMode||paused||gameOver||busy){showToast("Start or resume a game first");return}
+  if(profile.powers[power]<=0){showToast("No "+power+" power-ups left");return}
+  if(power==="hammer"){
+    activePower=activePower==="hammer"?null:"hammer";
+    document.body.classList.toggle("hammer-mode",activePower==="hammer");
+    document.querySelector('[data-power="hammer"]').classList.toggle("active",activePower==="hammer");
+    statusEl.textContent=activePower==="hammer"?"Choose an occupied cell":"Drag a block onto the board";
+    return;
+  }
+  if(power==="shuffle"){
+    if(!consumePower("shuffle")) return;
+    tray=[];
+    generateTray();
+    playSfx("power");
+    showToast("Blocks shuffled");
+  }else if(power==="undo"){
+    if(!lastMoveSnapshot){showToast("No move to undo");return}
+    if(!consumePower("undo")) return;
+    grid=[...lastMoveSnapshot.grid];
+    tray=structuredClone(lastMoveSnapshot.tray);
+    score=lastMoveSnapshot.score;
+    combo=lastMoveSnapshot.combo;
+    lastMoveSnapshot=null;
+    renderBoard();renderTray();updateHud();
+    playSfx("power");
+    showToast("Last move restored");
+  }else if(power==="secondChance"){
+    showToast("Second Chance activates at Game Over");
+  }
+}
+
+function handleHammer(event){
+  if(activePower!=="hammer"||paused||busy||gameOver) return;
+  const cell=event.target.closest(".cell");
+  if(!cell) return;
+  const index=Number(cell.dataset.index);
+  if(!grid[index]){showToast("Choose a filled cell");return}
+  if(!consumePower("hammer")) return;
+  grid[index]=false;
+  activePower=null;
+  document.body.classList.remove("hammer-mode");
+  document.querySelector('[data-power="hammer"]').classList.remove("active");
+  cell.classList.add("clearing");
+  burstAt(index,10);
+  playSfx("power");
+  if(profile.vibration&&navigator.vibrate) navigator.vibrate(20);
+  setTimeout(()=>{renderBoard();checkGameOver()},260);
+  statusEl.textContent="Cell forged away";
+}
+
+function useSecondChance(){
+  if(!gameOver||lastGameOverReason==="time"||profile.powers.secondChance<=0) return;
+  if(!consumePower("secondChance")) return;
+  const occupied=grid.map((value,index)=>value?index:-1).filter(index=>index>=0);
+  occupied.sort(()=>Math.random()-.5);
+  const cleared=occupied.slice(0,Math.min(14,occupied.length));
+  cleared.forEach(index=>grid[index]=false);
+  gameOver=false;
+  paused=false;
+  document.body.classList.remove("game-paused");
+  gameOverModal.classList.remove("open");
+  gameOverModal.setAttribute("aria-hidden","true");
+  tray=[];
+  renderBoard();
+  generateTray();
+  lastTimerTick=performance.now();
+  playSfx("revive");
+  showComboCallout("REVIVED!");
+  showToast("Second Chance used");
+}
+
 function burstAt(index,count){
   const cell=cells[index];
   if(!cell) return;
