@@ -215,6 +215,7 @@ function xpNeeded(){
 }
 
 function updateHud(){
+  updatePowerHud();
   scoreEl.textContent = score.toLocaleString();
   comboEl.textContent = "×" + combo;
   const modeKey=currentMode||"classic";
@@ -312,9 +313,10 @@ function generateTray(){
     }
     picked.push(weightedShape(pool,fullness));
   }
-  const bombChance=Math.min(.16,.065+profile.level*.008);
-  if(Math.random()<bombChance){
-    picked[Math.floor(Math.random()*picked.length)]=BOMB_SHAPE;
+  const specialChance=Math.min(.24,.105+profile.level*.009);
+  if(Math.random()<specialChance){
+    const special=SPECIAL_SHAPES[Math.floor(Math.random()*SPECIAL_SHAPES.length)];
+    picked[Math.floor(Math.random()*picked.length)]=special;
   }
   tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
   renderTray(true);
@@ -533,6 +535,7 @@ function endDrag(event){
 }
 
 function placeShape(entry,row,col){
+  snapshotMove();
   const placed=[];
   entry.shape.cells.forEach(([x,y])=>{
     const index=(row+y)*SIZE+(col+x);
@@ -554,10 +557,7 @@ function placeShape(entry,row,col){
   if(profile.vibration&&navigator.vibrate) navigator.vibrate(16);
   updateHud();
 
-  if(entry.shape.special==="bomb"){
-    detonateBomb(row,col);
-    return;
-  }
+  if(entry.shape.special&&activateSpecial(entry.shape.special,row,col)) return;
 
   const lines=findCompleteLines();
   if(lines.length){
@@ -585,6 +585,7 @@ function findCompleteLines(){
 function clearLines(lines){
   busy=true;
   combo++;
+  profile.stats.maxCombo=Math.max(Number(profile.stats.maxCombo||0),combo);
   const unique=[...new Set(lines.flat())];
   const lineCount=lines.length;
   const earned=lineCount*4+Math.max(0,lineCount-1)*3+Math.max(0,combo-1)*2;
@@ -711,6 +712,8 @@ function recordProgress(changes){
     profile.stats[type]=Number(profile.stats[type]||0)+amount;
   });
   checkMissions();
+  checkDailyMissions();
+  checkAchievements();
 }
 
 function showComboCallout(lineCount){
@@ -732,7 +735,83 @@ function triggerBoardShake(){
   setTimeout(()=>wrap.classList.remove("shake"),380);
 }
 
-function detonateBomb(row,col){
+function activateSpecial(special,row,col){
+  const progress={specials:1};
+  if(special==="bomb") progress.bombs=1;
+  recordProgress(progress);
+  checkAchievements();
+
+  if(special==="bomb"){
+    detonateBomb(row,col,"BOOM!");
+    return true;
+  }
+  if(special==="laser-h"){
+    detonateLaser(row,col,"horizontal");
+    return true;
+  }
+  if(special==="laser-v"){
+    detonateLaser(row,col,"vertical");
+    return true;
+  }
+  if(special==="golden"){
+    profile.coins+=10;
+    score+=75;
+    commitBest();
+    playSfx("gold");
+    showComboCallout("+10 COINS");
+    showToast("Golden Block forged 10 coins");
+    return false;
+  }
+  if(special==="rainbow"){
+    score+=40;
+    commitBest();
+    playSfx("rainbow");
+    showComboCallout("WILD!");
+    return false;
+  }
+  if(special==="mystery"){
+    const outcomes=["bomb","laser-h","laser-v","golden"];
+    const outcome=outcomes[Math.floor(Math.random()*outcomes.length)];
+    showToast("Mystery became "+outcome.replace("-"," ").toUpperCase());
+    playSfx("mystery");
+    if(outcome==="bomb"){detonateBomb(row,col,"MYSTERY BOOM!");return true}
+    if(outcome==="laser-h"){detonateLaser(row,col,"horizontal");return true}
+    if(outcome==="laser-v"){detonateLaser(row,col,"vertical");return true}
+    profile.coins+=15;score+=90;commitBest();showComboCallout("+15 COINS");
+    return false;
+  }
+  return false;
+}
+
+function detonateLaser(row,col,direction){
+  busy=true;
+  const affected=direction==="horizontal"
+    ?Array.from({length:SIZE},(_,c)=>row*SIZE+c)
+    :Array.from({length:SIZE},(_,r)=>r*SIZE+col);
+  const removed=affected.filter(index=>grid[index]).length;
+  const label=direction==="horizontal"?"LASER ↔":"LASER ↕";
+  statusEl.textContent=label;
+  showComboCallout("LASER!");
+  triggerBoardShake();
+  playSfx("laser");
+  if(profile.vibration&&navigator.vibrate) navigator.vibrate([18,15,28]);
+  affected.forEach((index,i)=>setTimeout(()=>{
+    cells[index]?.classList.add("clearing");
+    burstAt(index,9);
+  },i*28));
+  setTimeout(()=>{
+    affected.forEach(index=>grid[index]=false);
+    const bonus=120+removed*30;
+    const earned=Math.max(2,Math.ceil(removed/2));
+    score+=bonus;profile.coins+=earned;commitBest();
+    recordProgress({scoreEarned:bonus});
+    addXP(14+removed*2);
+    renderBoard();scorePop(label+" +"+bonus+" • +"+earned+" COINS");updateHud();
+    busy=false;afterTurn();
+  },520);
+}
+
+function detonateBomb(row,col,label="BOOM!"){
   busy=true;
   const affected=[];
   for(let r=row-1;r<=row+1;r++){
@@ -742,7 +821,7 @@ function detonateBomb(row,col){
   }
   const removed=affected.filter(index=>grid[index]).length;
   statusEl.textContent="BOMB BLOCK!";
-  showComboCallout("BOOM!");
+  showComboCallout(label);
   triggerBoardShake();
   playSfx("bomb");
   if(profile.vibration&&navigator.vibrate) navigator.vibrate([28,20,45]);
@@ -757,7 +836,7 @@ function detonateBomb(row,col){
     score+=bonus;
     profile.coins+=earned;
     commitBest();
-    recordProgress({bombs:1,scoreEarned:bonus});
+    recordProgress({scoreEarned:bonus});
     addXP(18+removed*2);
     renderBoard();
     scorePop("BOOM! +"+bonus+" • +"+earned+" COINS");
@@ -1138,11 +1217,13 @@ function zenRescue(){
 
 function endGame(reason="full"){
   gameOver=true;
+  lastGameOverReason=reason;
   paused=true;
   document.body.classList.add("game-paused");
   activeDrag?.ghost?.remove();
   activeDrag=null;
   commitBest();
+  recordProgress({games:1,timedGames:currentMode==="timed"?1:0});
   const isTimed=reason==="time";
   $("#gameOverEyebrow").textContent=isTimed?"TWO MINUTES COMPLETE":"THE FORGE IS FULL";
   $("#gameOverTitle").textContent=isTimed?"TIME'S UP":"GAME OVER";
@@ -1151,6 +1232,7 @@ function endGame(reason="full"){
   gameOverModal.classList.add("open");
   gameOverModal.setAttribute("aria-hidden","false");
   updateHud();
+  updatePowerHud();
   renderMenu();
   playSfx("gameover");
   saveProfile();
@@ -1158,6 +1240,9 @@ function endGame(reason="full"){
 
 function restartGame(){
   if(!currentMode) return;
+  activePower=null;
+  lastMoveSnapshot=null;
+  document.body.classList.remove("hammer-mode");
   unlockAudio();
   grid=Array(SIZE*SIZE).fill(false);
   tray=[];
@@ -1183,7 +1268,7 @@ function restartGame(){
 }
 
 function isBlockingOverlayOpen(){
-  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal"]
+  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal","#dailyRewardModal","#achievementsModal"]
     .some(selector=>$(selector).classList.contains("open"));
 }
 
@@ -1227,6 +1312,7 @@ function resetModeTimer(){
 }
 
 function renderMenu(){
+  renderDailyReward();
   $("#menuLevel").textContent=profile.level;
   $("#menuCoins").textContent=profile.coins;
   $("#classicBest").textContent=Number(profile.modeBests.classic||0).toLocaleString();
@@ -1423,6 +1509,22 @@ function playSfx(kind,power=1){
     tone(760,now,.12,.045,"square",sfxGain,160);
   }else if(kind==="zen"){
     [261.63,329.63,392].forEach((f,i)=>tone(f,now+i*.12,.5,.026,"sine",sfxGain));
+  }else if(kind==="power"){
+    [220,440].forEach((f,i)=>tone(f,now+i*.055,.18,.04,"triangle",sfxGain));
+  }else if(kind==="laser"){
+    tone(920,now,.28,.055,"sawtooth",sfxGain,110);
+  }else if(kind==="gold"){
+    [659.25,783.99,987.77].forEach((f,i)=>tone(f,now+i*.07,.24,.04,"sine",sfxGain));
+  }else if(kind==="rainbow"){
+    [523.25,659.25,880].forEach((f,i)=>tone(f,now+i*.055,.25,.035,"triangle",sfxGain));
+  }else if(kind==="mystery"){
+    tone(240,now,.32,.04,"sine",sfxGain,720);
+  }else if(kind==="daily"){
+    [523.25,659.25,783.99,1046.5].forEach((f,i)=>tone(f,now+i*.08,.32,.04,"triangle",sfxGain));
+  }else if(kind==="achievement"){
+    [392,523.25,659.25,783.99].forEach((f,i)=>tone(f,now+i*.1,.38,.045,"sine",sfxGain));
+  }else if(kind==="revive"){
+    [196,293.66,392,587.33].forEach((f,i)=>tone(f,now+i*.09,.4,.04,"sine",sfxGain));
   }else if(kind==="mission"){
     [440,554.37,659.25].forEach((f,i)=>tone(f,now+i*.08,.3,.04,"triangle",sfxGain));
   }else if(kind==="level"){
@@ -1538,6 +1640,8 @@ function shopAction(category,item){
     if(profile.coins<item.price){showToast("Not enough coins");return}
     profile.coins-=item.price;
     profile.owned[category].push(item.id);
+    profile.stats.shopPurchases++;
+    checkAchievements();
     playSfx("buy");
     showToast(item.name+" unlocked");
   }
