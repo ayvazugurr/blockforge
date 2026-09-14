@@ -38,7 +38,7 @@
 
     <section class="level-card" aria-label="Player level">
       <div class="level-row">
-        <strong>LEVEL <span id="levelValue">1</span></strong>
+        <strong>LEVEL <span id="levelValue">1</span> <em id="playerTitle">APPRENTICE</em></strong>
         <span id="xpText">0 / 100 XP</span>
       </div>
       <div class="xp-track"><i id="xpFill"></i></div>
@@ -135,6 +135,7 @@
         <button id="menuSettingsBtn" class="secondary-btn" type="button">⚙ SETTINGS</button>
         <button id="dailyRewardBtn" class="secondary-btn reward-menu-btn" type="button">🎁 DAILY REWARD</button>
         <button id="achievementsBtn" class="secondary-btn" type="button">★ ACHIEVEMENTS</button>
+        <button id="levelRoadBtn" class="secondary-btn level-road-btn" type="button">♛ LEVEL ROAD</button>
       </div>
     </div>
   </div>
@@ -168,6 +169,22 @@
         <button id="closeAchievementsBtn" class="close-btn" type="button" aria-label="Close achievements">×</button>
       </header>
       <div id="achievementsList" class="achievements-list"></div>
+    </div>
+  </div>
+
+  <div id="levelRoadModal" class="modal" aria-hidden="true">
+    <div class="modal-card level-road-card">
+      <header class="shop-header">
+        <div><span class="eyebrow">YOUR FORGE JOURNEY</span><h2>LEVEL ROAD</h2></div>
+        <button id="closeLevelRoadBtn" class="close-btn" type="button" aria-label="Close level road">×</button>
+      </header>
+      <section class="rank-banner">
+        <span>CURRENT TITLE</span>
+        <strong id="roadTitle">APPRENTICE</strong>
+        <small id="nextUnlockText">Next unlock loading…</small>
+      </section>
+      <div id="levelRoadList" class="level-road-list"></div>
+      <p class="shop-note">Every level gives coins. Every fifth level opens a bonus chest.</p>
     </div>
   </div>
 
