@@ -1,10 +1,20 @@
-# BlockForge v0.6
+# BlockForge v0.7
 
 A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
-## Features
+## What's new in v0.7
 
-- Mouse, touch and stylus drag controls
+- Seven-day Daily Reward streak with coins, boosters and a day-seven jackpot
+- Three rotating Daily Missions with persistent progress and rewards
+- Four boosters: Hammer, Shuffle, Undo and Second Chance
+- Special blocks: Bomb, horizontal/vertical Laser, Golden, Rainbow and Mystery
+- Six persistent achievements with coin and XP rewards
+- Backward-compatible local save migration for existing players
+
+## Core features
+
+- Mouse, touch and stylus drag controls with cell-accurate previews
+- Smooth requestAnimationFrame-powered dragging and animated tray refills
 - Balanced three-piece generation that reacts to board occupancy
 - Row and column clearing with combo scoring
 - Particle explosions, landing animations and haptic feedback
@@ -12,16 +22,10 @@ A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 - Separate music and sound-effect volume controls
 - Persistent high score, coins, purchases and settings
 - In-game shop for block skins, color palettes, themes and shape packs
-- Tap-to-preview shop products before buying
-- Persistent player level and XP progression
-- Three rotating Forge Order missions with coin and XP rewards
-- Rare Bomb Block that clears a 3×3 area
-- Escalating combo callouts and stronger multi-clear feedback
-- Main menu with Classic, 2-minute Timed and endless Zen modes
-- Separate persistent best scores for every game mode
+- Player level, XP, Forge Orders and three game modes
+- Classic, two-minute Timed and endless Zen modes
 - Pause/resume, fullscreen controls and optional vibration
-- Automatic pause when the app or browser tab is hidden
-- Instant restart button and game-over detection
+- Instant restart, game-over detection and Second Chance recovery
 
 ## Play
 
@@ -31,7 +35,8 @@ Open `index.html` in a modern browser. Audio begins after the first click or tou
 
 - Drag a piece onto the 8×8 board.
 - Complete a row or column to clear it and earn coins.
-- Use the top-left buttons to restart, toggle music and open the shop.
-- Press `R` to restart or `Esc` to close the shop on desktop.
+- Use the booster bar for Hammer, Shuffle and Undo.
+- Second Chance is offered on eligible game-over screens.
+- Press `R` to restart, `Space` to pause or `Esc` to close the active panel.
 
 No build step or external JavaScript dependency is required.
