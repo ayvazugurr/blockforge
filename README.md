@@ -1,4 +1,4 @@
-# BlockForge v0.5
+# BlockForge v0.6
 
 A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 
@@ -17,6 +17,10 @@ A responsive 8×8 block puzzle game built with vanilla HTML, CSS and JavaScript.
 - Three rotating Forge Order missions with coin and XP rewards
 - Rare Bomb Block that clears a 3×3 area
 - Escalating combo callouts and stronger multi-clear feedback
+- Main menu with Classic, 2-minute Timed and endless Zen modes
+- Separate persistent best scores for every game mode
+- Pause/resume, fullscreen controls and optional vibration
+- Automatic pause when the app or browser tab is hidden
 - Instant restart button and game-over detection
 
 ## Play
