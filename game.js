@@ -38,6 +38,43 @@ const PACK_SHAPES = {
 };
 
 const BOMB_SHAPE = {id:"bomb",cells:[[0,0]],tier:1,special:"bomb"};
+const SPECIAL_SHAPES = [
+  BOMB_SHAPE,
+  {id:"laser-h",cells:[[0,0]],tier:1,special:"laser-h"},
+  {id:"laser-v",cells:[[0,0]],tier:1,special:"laser-v"},
+  {id:"golden",cells:[[0,0]],tier:1,special:"golden"},
+  {id:"rainbow",cells:[[0,0]],tier:1,special:"rainbow"},
+  {id:"mystery",cells:[[0,0]],tier:1,special:"mystery"}
+];
+
+const DAILY_REWARDS = [
+  {coins:10,label:"● 10",icon:"●"},
+  {coins:15,label:"● 15",icon:"●"},
+  {power:"hammer",amount:1,label:"+1",icon:"🔨"},
+  {coins:25,label:"● 25",icon:"●"},
+  {power:"shuffle",amount:1,label:"+1",icon:"⟳"},
+  {coins:35,label:"● 35",icon:"●"},
+  {coins:50,power:"secondChance",amount:1,label:"●50 + ✚",icon:"★"}
+];
+
+const DAILY_MISSION_DEFS = [
+  {type:"placements",label:"Place 15 blocks",icon:"▦",target:15,coins:8,xp:25},
+  {type:"lines",label:"Clear 5 lines",icon:"✦",target:5,coins:12,xp:35},
+  {type:"games",label:"Finish 2 games",icon:"▶",target:2,coins:10,xp:30},
+  {type:"specials",label:"Use 2 special blocks",icon:"◆",target:2,coins:12,xp:35},
+  {type:"multiclears",label:"Make a double clear",icon:"×2",target:1,coins:15,xp:45},
+  {type:"powersUsed",label:"Use 2 power-ups",icon:"⚡",target:2,coins:10,xp:30},
+  {type:"timedGames",label:"Finish a Timed game",icon:"◷",target:1,coins:14,xp:40}
+];
+
+const ACHIEVEMENT_DEFS = [
+  {id:"score10k",name:"Master Forger",desc:"Reach 10,000 score in one game",icon:"♛",coins:40,xp:100,type:"best",target:10000},
+  {id:"lines100",name:"Line Breaker",desc:"Clear 100 total lines",icon:"✦",coins:35,xp:80,type:"lines",target:100},
+  {id:"combo5",name:"Chain Reaction",desc:"Reach a ×5 combo",icon:"×5",coins:30,xp:75,type:"maxCombo",target:5},
+  {id:"bomb25",name:"Demolition Expert",desc:"Detonate 25 Bomb Blocks",icon:"●",coins:45,xp:100,type:"bombs",target:25},
+  {id:"timed3k",name:"Against the Clock",desc:"Score 3,000 in Timed mode",icon:"◷",coins:40,xp:90,type:"timedBest",target:3000},
+  {id:"firstBuy",name:"Collector",desc:"Buy your first shop item",icon:"◆",coins:20,xp:50,type:"shopPurchases",target:1}
+];
 
 const SHOP = {
   skins:[
@@ -80,7 +117,14 @@ const defaults = {
   coins:0,best:0,musicOn:true,musicVolume:.32,sfxVolume:.72,vibration:true,
   level:1,xp:0,missionCycle:1,missions:[],
   modeBests:{classic:0,timed:0,zen:0},
-  stats:{placements:0,lines:0,scoreEarned:0,multiclears:0,bombs:0},
+  powers:{hammer:1,shuffle:1,undo:1,secondChance:1},
+  daily:{lastClaim:"",streak:0,lastSeen:""},
+  dailyMissions:{date:"",items:[]},
+  achievements:{},
+  stats:{
+    placements:0,lines:0,scoreEarned:0,multiclears:0,bombs:0,
+    games:0,timedGames:0,specials:0,powersUsed:0,maxCombo:0,shopPurchases:0
+  },
   owned:{skins:["forge"],palettes:["ocean"],themes:["midnight"],packs:[]},
   selected:{skin:"forge",palette:"ocean",theme:"midnight"}
 };
@@ -98,6 +142,13 @@ function loadProfile(){
       },
       selected:{...defaults.selected,...(stored.selected||{})},
       stats:{...defaults.stats,...(stored.stats||{})},
+      powers:{...defaults.powers,...(stored.powers||{})},
+      daily:{...defaults.daily,...(stored.daily||{})},
+      dailyMissions:{
+        date:stored.dailyMissions?.date||"",
+        items:Array.isArray(stored.dailyMissions?.items)?stored.dailyMissions.items:[]
+      },
+      achievements:{...defaults.achievements,...(stored.achievements||{})},
       modeBests:{
         classic:Number(stored.modeBests?.classic??stored.best??0),
         timed:Number(stored.modeBests?.timed??0),
@@ -121,6 +172,9 @@ let roundStartingBest = 0;
 let timerRemainingMs = 120000;
 let timerInterval = null;
 let lastTimerTick = 0;
+let lastGameOverReason = "full";
+let activePower = null;
+let lastMoveSnapshot = null;
 let activeDrag = null;
 let previewIndexes = [];
 let toastTimer = null;
