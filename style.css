@@ -104,7 +104,19 @@ body[data-skin="candy"] .cell.filled,body[data-skin="candy"] .mini-cell,body[dat
 .tray{height:126px;display:grid;grid-template-columns:repeat(3,1fr);gap:9px;align-items:stretch}
 .tray-slot{
   display:grid;place-items:center;border:1px solid var(--line);border-radius:17px;min-width:0;
-  background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.012));transition:.2s
+  background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.012));transition:.2s;
+  position:relative;overflow:hidden
+}
+.tray-slot.entering{
+  opacity:0;animation:trayEnter .48s cubic-bezier(.18,1.45,.35,1) forwards;
+  animation-delay:var(--enter-delay,0ms)
+}
+.tray-slot.entering:after{
+  content:"";position:absolute;inset:-30%;pointer-events:none;opacity:0;
+  background:linear-gradient(110deg,transparent 36%,rgba(255,255,255,.22) 50%,transparent 64%);
+  transform:translateX(-75%) rotate(8deg);
+  animation:traySheen .58s ease-out forwards;
+  animation-delay:calc(var(--enter-delay,0ms) + 110ms)
 }
 .tray-slot:has(.tray-block):hover{border-color:color-mix(in srgb,var(--accent) 42%,transparent);background:rgba(255,255,255,.06)}
 .tray-slot.used{opacity:.22}
@@ -172,6 +184,16 @@ input[type="range"]::-webkit-slider-thumb{appearance:none;width:15px;height:15px
 .buy-btn.selected{color:#06101d;background:var(--good)}
 .buy-btn:disabled{opacity:.46;cursor:not-allowed;transform:none}
 .shop-note{text-align:center;color:var(--muted);font-size:9px;margin:13px 0 0}
+@keyframes trayEnter{
+  0%{opacity:0;transform:translateY(18px) scale(.82);filter:brightness(1.8)}
+  65%{opacity:1;transform:translateY(-3px) scale(1.035);filter:brightness(1.16)}
+  100%{opacity:1;transform:translateY(0) scale(1);filter:brightness(1)}
+}
+@keyframes traySheen{
+  0%{opacity:0;transform:translateX(-75%) rotate(8deg)}
+  25%{opacity:1}
+  100%{opacity:0;transform:translateX(75%) rotate(8deg)}
+}
 @keyframes pickup{50%{transform:translateY(-9px) scale(1.16)}}
 @keyframes ghostIn{from{opacity:.35}to{opacity:1}}
 @keyframes land{0%{transform:scale(.25);filter:brightness(2)}65%{transform:scale(1.15)}100%{transform:scale(1)}}
