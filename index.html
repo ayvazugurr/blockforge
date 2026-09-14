@@ -16,6 +16,8 @@
       <button id="restartBtn" class="icon-btn" type="button" title="Restart game" aria-label="Restart game">↻</button>
       <button id="musicBtn" class="icon-btn" type="button" title="Toggle music" aria-label="Toggle music">♫</button>
       <button id="shopBtn" class="icon-btn shop-btn" type="button" title="Open shop" aria-label="Open shop">◆</button>
+      <button id="pauseBtn" class="icon-btn" type="button" title="Pause" aria-label="Pause game">Ⅱ</button>
+      <button id="fullscreenBtn" class="icon-btn fullscreen-btn" type="button" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
     </div>
     <div class="brand">
       <span class="brand-mark">BF</span>
@@ -40,6 +42,11 @@
         <span id="xpText">0 / 100 XP</span>
       </div>
       <div class="xp-track"><i id="xpFill"></i></div>
+    </section>
+
+    <section class="mode-strip" aria-label="Current game mode">
+      <span id="modeBadge">CLASSIC</span>
+      <strong id="timerDisplay" hidden>02:00</strong>
     </section>
 
     <section class="board-wrap">
@@ -79,12 +86,63 @@
 
   <div id="gameOverModal" class="modal" aria-hidden="true">
     <div class="modal-card game-over-card">
-      <span class="eyebrow">THE FORGE IS FULL</span>
-      <h2>GAME OVER</h2>
+      <span id="gameOverEyebrow" class="eyebrow">THE FORGE IS FULL</span>
+      <h2 id="gameOverTitle">GAME OVER</h2>
       <div class="final-score"><span>FINAL SCORE</span><strong id="finalScore">0</strong></div>
       <p id="newBestText"></p>
       <button id="playAgainBtn" class="primary-btn" type="button">PLAY AGAIN</button>
       <button id="gameOverShopBtn" class="secondary-btn" type="button">OPEN SHOP</button>
+      <button id="gameOverMenuBtn" class="secondary-btn" type="button">MAIN MENU</button>
+    </div>
+  </div>
+
+  <div id="mainMenuModal" class="modal main-menu-modal open" aria-hidden="false">
+    <div class="modal-card main-menu-card">
+      <div class="menu-logo"><span class="brand-mark">BF</span><h2>BLOCKFORGE</h2><p>BUILD • CLEAR • EARN</p></div>
+      <div class="menu-profile">
+        <div><span>PLAYER LEVEL</span><strong id="menuLevel">1</strong></div>
+        <div><span>TOTAL COINS</span><strong><span class="coin">●</span> <b id="menuCoins">0</b></strong></div>
+      </div>
+      <h3>CHOOSE MODE</h3>
+      <div class="mode-grid">
+        <button class="mode-card classic" type="button" data-mode="classic">
+          <span class="mode-icon">∞</span><strong>CLASSIC</strong><small>Play until the board is full</small><b>BEST <i id="classicBest">0</i></b>
+        </button>
+        <button class="mode-card timed" type="button" data-mode="timed">
+          <span class="mode-icon">◷</span><strong>TIMED</strong><small>Score big in 2 minutes</small><b>BEST <i id="timedBest">0</i></b>
+        </button>
+        <button class="mode-card zen" type="button" data-mode="zen">
+          <span class="mode-icon">◇</span><strong>ZEN</strong><small>Relax with no Game Over</small><b>BEST <i id="zenBest">0</i></b>
+        </button>
+      </div>
+      <div class="menu-actions">
+        <button id="menuShopBtn" class="secondary-btn" type="button">◆ SHOP</button>
+        <button id="menuSettingsBtn" class="secondary-btn" type="button">⚙ SETTINGS</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pauseModal" class="modal" aria-hidden="true">
+    <div class="modal-card pause-card">
+      <span class="eyebrow">GAME PAUSED</span><h2>TAKE A BREATH</h2>
+      <button id="resumeBtn" class="primary-btn" type="button">RESUME</button>
+      <button id="pauseRestartBtn" class="secondary-btn" type="button">RESTART MODE</button>
+      <button id="pauseMenuBtn" class="secondary-btn" type="button">MAIN MENU</button>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal" aria-hidden="true">
+    <div class="modal-card settings-card">
+      <header class="shop-header">
+        <div><span class="eyebrow">GAME OPTIONS</span><h2>SETTINGS</h2></div>
+        <button id="closeSettingsBtn" class="close-btn" type="button" aria-label="Close settings">×</button>
+      </header>
+      <label class="setting-row">
+        <span><strong>VIBRATION</strong><small>Haptic feedback on supported devices</small></span>
+        <input id="vibrationToggle" type="checkbox" checked>
+      </label>
+      <button id="settingsFullscreenBtn" class="secondary-btn" type="button">TOGGLE FULLSCREEN</button>
+      <p class="shop-note">Music and effect volumes can be changed below the game board.</p>
     </div>
   </div>
 
