@@ -77,8 +77,9 @@ const MISSION_DEFS = [
 ];
 
 const defaults = {
-  coins:0,best:0,musicOn:true,musicVolume:.32,sfxVolume:.72,
+  coins:0,best:0,musicOn:true,musicVolume:.32,sfxVolume:.72,vibration:true,
   level:1,xp:0,missionCycle:1,missions:[],
+  modeBests:{classic:0,timed:0,zen:0},
   stats:{placements:0,lines:0,scoreEarned:0,multiclears:0,bombs:0},
   owned:{skins:["forge"],palettes:["ocean"],themes:["midnight"],packs:[]},
   selected:{skin:"forge",palette:"ocean",theme:"midnight"}
@@ -97,6 +98,11 @@ function loadProfile(){
       },
       selected:{...defaults.selected,...(stored.selected||{})},
       stats:{...defaults.stats,...(stored.stats||{})},
+      modeBests:{
+        classic:Number(stored.modeBests?.classic??stored.best??0),
+        timed:Number(stored.modeBests?.timed??0),
+        zen:Number(stored.modeBests?.zen??0)
+      },
       missions:Array.isArray(stored.missions)?stored.missions:[]
     };
   }catch{return structuredClone(defaults)}
@@ -109,6 +115,12 @@ let score = 0;
 let combo = 0;
 let busy = false;
 let gameOver = false;
+let currentMode = null;
+let paused = true;
+let roundStartingBest = 0;
+let timerRemainingMs = 120000;
+let timerInterval = null;
+let lastTimerTick = 0;
 let activeDrag = null;
 let previewIndexes = [];
 let toastTimer = null;
@@ -151,13 +163,21 @@ function xpNeeded(){
 function updateHud(){
   scoreEl.textContent = score.toLocaleString();
   comboEl.textContent = "×" + combo;
-  bestEl.textContent = profile.best.toLocaleString();
+  const modeKey=currentMode||"classic";
+  bestEl.textContent = Number(profile.modeBests[modeKey]||0).toLocaleString();
   coinEl.textContent = profile.coins;
   shopCoinEl.textContent = profile.coins;
   const needed=xpNeeded();
   $("#levelValue").textContent=profile.level;
   $("#xpText").textContent=profile.xp+" / "+needed+" XP";
   $("#xpFill").style.width=Math.min(100,profile.xp/needed*100)+"%";
+}
+
+function commitBest(){
+  profile.best=Math.max(Number(profile.best||0),score);
+  if(currentMode){
+    profile.modeBests[currentMode]=Math.max(Number(profile.modeBests[currentMode]||0),score);
+  }
 }
 
 function makeBoard(){
@@ -227,7 +247,7 @@ function generateTray(){
   const shapes=allShapes();
   const fullness=grid.filter(Boolean).length/(SIZE*SIZE);
   const fitting=shapes.filter(canFit);
-  if(!fitting.length){endGame();return}
+  if(!fitting.length){handleNoMoves();return}
   const picked=[];
   for(let i=0;i<3;i++){
     let pool=shapes.filter(s=>!picked.some(p=>p.id===s.id));
@@ -287,11 +307,11 @@ function renderTray(fresh=false){
 }
 
 function beginDrag(event,entry,source){
-  if(busy||gameOver||entry.used) return;
+  if(busy||gameOver||paused||entry.used) return;
   event.preventDefault();
   unlockAudio();
   playSfx("pickup");
-  if(navigator.vibrate) navigator.vibrate(9);
+  if(profile.vibration&&navigator.vibrate) navigator.vibrate(9);
   const ghost=createGhost(entry.shape);
   const grab=findGrabbedCell(event,source,entry.shape);
   document.body.appendChild(ghost);
@@ -468,7 +488,7 @@ function placeShape(entry,row,col){
   entry.used=true;
   const placementScore=entry.shape.cells.length*10;
   score+=placementScore;
-  profile.best=Math.max(profile.best,score);
+  commitBest();
   recordProgress({placements:1,scoreEarned:placementScore});
   addXP(Math.max(1,entry.shape.cells.length));
   renderBoard();
@@ -477,7 +497,7 @@ function placeShape(entry,row,col){
   });
   renderTray();
   playSfx("drop");
-  if(navigator.vibrate) navigator.vibrate(16);
+  if(profile.vibration&&navigator.vibrate) navigator.vibrate(16);
   updateHud();
 
   if(entry.shape.special==="bomb"){
@@ -528,12 +548,12 @@ function clearLines(lines){
     },Math.min(i*13,150));
   });
   playSfx("clear",lineCount);
-  if(navigator.vibrate) navigator.vibrate([20,25,32]);
+  if(profile.vibration&&navigator.vibrate) navigator.vibrate([20,25,32]);
   setTimeout(()=>{
     unique.forEach(i=>grid[i]=false);
     score+=bonus;
     profile.coins+=earned;
-    profile.best=Math.max(profile.best,score);
+    commitBest();
     recordProgress({
       lines:lineCount,
       multiclears:lineCount>1?1:0,
@@ -671,7 +691,7 @@ function detonateBomb(row,col){
   showComboCallout("BOOM!");
   triggerBoardShake();
   playSfx("bomb");
-  if(navigator.vibrate) navigator.vibrate([28,20,45]);
+  if(profile.vibration&&navigator.vibrate) navigator.vibrate([28,20,45]);
   affected.forEach((index,i)=>setTimeout(()=>{
     cells[index]?.classList.add("clearing");
     burstAt(index,12);
@@ -682,7 +702,7 @@ function detonateBomb(row,col){
     const earned=Math.max(2,Math.floor(removed/2));
     score+=bonus;
     profile.coins+=earned;
-    profile.best=Math.max(profile.best,score);
+    commitBest();
     recordProgress({bombs:1,scoreEarned:bonus});
     addXP(18+removed*2);
     renderBoard();
@@ -738,22 +758,62 @@ function afterTurn(){
 function checkGameOver(){
   if(busy||gameOver) return;
   const remaining=tray.filter(entry=>!entry.used);
-  if(remaining.length && !remaining.some(entry=>canFit(entry.shape))) endGame();
+  if(remaining.length && !remaining.some(entry=>canFit(entry.shape))) handleNoMoves();
 }
 
-function endGame(){
+function handleNoMoves(){
+  if(currentMode==="zen"){
+    zenRescue();
+  }else{
+    endGame("full");
+  }
+}
+
+function zenRescue(){
+  if(busy) return;
+  busy=true;
+  const occupied=grid.map((value,index)=>value?index:-1).filter(index=>index>=0);
+  occupied.sort(()=>Math.random()-.5);
+  const rescued=occupied.slice(0,Math.min(10,occupied.length));
+  statusEl.textContent="ZEN RESCUE";
+  showComboCallout("BREATHE");
+  rescued.forEach((index,i)=>setTimeout(()=>{
+    cells[index]?.classList.add("clearing");
+    burstAt(index,5);
+  },i*24));
+  playSfx("zen");
+  setTimeout(()=>{
+    rescued.forEach(index=>grid[index]=false);
+    tray=[];
+    renderBoard();
+    busy=false;
+    generateTray();
+    showToast("Zen space restored");
+  },500);
+}
+
+function endGame(reason="full"){
   gameOver=true;
+  paused=true;
+  document.body.classList.add("game-paused");
   activeDrag?.ghost?.remove();
   activeDrag=null;
+  commitBest();
+  const isTimed=reason==="time";
+  $("#gameOverEyebrow").textContent=isTimed?"TWO MINUTES COMPLETE":"THE FORGE IS FULL";
+  $("#gameOverTitle").textContent=isTimed?"TIME'S UP":"GAME OVER";
   $("#finalScore").textContent=score.toLocaleString();
-  $("#newBestText").textContent=score>=profile.best&&score>0?"NEW BEST SCORE!":"Earn coins and unlock a new style.";
+  $("#newBestText").textContent=score>roundStartingBest?"NEW "+currentMode.toUpperCase()+" BEST!":"Earn coins and unlock a new style.";
   gameOverModal.classList.add("open");
   gameOverModal.setAttribute("aria-hidden","false");
+  updateHud();
+  renderMenu();
   playSfx("gameover");
   saveProfile();
 }
 
 function restartGame(){
+  if(!currentMode) return;
   unlockAudio();
   grid=Array(SIZE*SIZE).fill(false);
   tray=[];
@@ -761,14 +821,158 @@ function restartGame(){
   combo=0;
   busy=false;
   gameOver=false;
+  paused=false;
+  roundStartingBest=Number(profile.modeBests[currentMode]||0);
   clearPreview();
+  document.body.classList.remove("game-paused");
   gameOverModal.classList.remove("open");
   gameOverModal.setAttribute("aria-hidden","true");
+  $("#pauseModal").classList.remove("open");
+  $("#pauseModal").setAttribute("aria-hidden","true");
   renderBoard();
+  updateModeUi();
+  resetModeTimer();
   updateHud();
   generateTray();
-  showToast("New forge started");
+  showToast(currentMode.toUpperCase()+" mode started");
   playSfx("restart");
+}
+
+function isBlockingOverlayOpen(){
+  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal"]
+    .some(selector=>$(selector).classList.contains("open"));
+}
+
+function updateModeUi(){
+  const label=(currentMode||"classic").toUpperCase();
+  $("#modeBadge").textContent=label;
+  $("#timerDisplay").hidden=currentMode!=="timed";
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay(){
+  const seconds=Math.max(0,Math.ceil(timerRemainingMs/1000));
+  const mins=String(Math.floor(seconds/60)).padStart(2,"0");
+  const secs=String(seconds%60).padStart(2,"0");
+  const display=$("#timerDisplay");
+  display.textContent=mins+":"+secs;
+  display.classList.toggle("danger",currentMode==="timed"&&seconds<=15);
+}
+
+function resetModeTimer(){
+  clearInterval(timerInterval);
+  timerInterval=null;
+  timerRemainingMs=120000;
+  updateTimerDisplay();
+  if(currentMode!=="timed") return;
+  lastTimerTick=performance.now();
+  timerInterval=setInterval(()=>{
+    const now=performance.now();
+    const delta=now-lastTimerTick;
+    lastTimerTick=now;
+    if(paused||gameOver||isBlockingOverlayOpen()) return;
+    timerRemainingMs=Math.max(0,timerRemainingMs-delta);
+    updateTimerDisplay();
+    if(timerRemainingMs<=0){
+      clearInterval(timerInterval);
+      timerInterval=null;
+      endGame("time");
+    }
+  },100);
+}
+
+function renderMenu(){
+  $("#menuLevel").textContent=profile.level;
+  $("#menuCoins").textContent=profile.coins;
+  $("#classicBest").textContent=Number(profile.modeBests.classic||0).toLocaleString();
+  $("#timedBest").textContent=Number(profile.modeBests.timed||0).toLocaleString();
+  $("#zenBest").textContent=Number(profile.modeBests.zen||0).toLocaleString();
+}
+
+function openMainMenu(){
+  clearInterval(timerInterval);
+  timerInterval=null;
+  paused=true;
+  currentMode=null;
+  document.body.classList.add("game-paused");
+  gameOverModal.classList.remove("open");
+  $("#pauseModal").classList.remove("open");
+  renderMenu();
+  $("#mainMenuModal").classList.add("open");
+  $("#mainMenuModal").setAttribute("aria-hidden","false");
+}
+
+function startMode(mode){
+  currentMode=mode;
+  $("#mainMenuModal").classList.remove("open");
+  $("#mainMenuModal").setAttribute("aria-hidden","true");
+  restartGame();
+}
+
+function pauseGame(){
+  if(!currentMode||gameOver||paused) return;
+  paused=true;
+  document.body.classList.add("game-paused");
+  $("#pauseModal").classList.add("open");
+  $("#pauseModal").setAttribute("aria-hidden","false");
+}
+
+function resumeGame(){
+  if(!currentMode||gameOver) return;
+  paused=false;
+  lastTimerTick=performance.now();
+  document.body.classList.remove("game-paused");
+  $("#pauseModal").classList.remove("open");
+  $("#pauseModal").setAttribute("aria-hidden","true");
+}
+
+async function toggleFullscreen(){
+  try{
+    if(!document.fullscreenElement){
+      await document.documentElement.requestFullscreen();
+    }else{
+      await document.exitFullscreen();
+    }
+  }catch{
+    showToast("Fullscreen is not supported here");
+  }
+}
+
+function openSettings(){
+  $("#vibrationToggle").checked=profile.vibration;
+  $("#settingsModal").classList.add("open");
+  $("#settingsModal").setAttribute("aria-hidden","false");
+}
+
+function closeSettings(){
+  $("#settingsModal").classList.remove("open");
+  $("#settingsModal").setAttribute("aria-hidden","true");
+  lastTimerTick=performance.now();
+}
+
+function setupModes(){
+  document.querySelectorAll("[data-mode]").forEach(button=>{
+    button.addEventListener("click",()=>startMode(button.dataset.mode));
+  });
+  $("#pauseBtn").addEventListener("click",pauseGame);
+  $("#resumeBtn").addEventListener("click",resumeGame);
+  $("#pauseRestartBtn").addEventListener("click",restartGame);
+  $("#pauseMenuBtn").addEventListener("click",openMainMenu);
+  $("#gameOverMenuBtn").addEventListener("click",openMainMenu);
+  $("#menuShopBtn").addEventListener("click",()=>openShop());
+  $("#menuSettingsBtn").addEventListener("click",openSettings);
+  $("#closeSettingsBtn").addEventListener("click",closeSettings);
+  $("#fullscreenBtn").addEventListener("click",toggleFullscreen);
+  $("#settingsFullscreenBtn").addEventListener("click",toggleFullscreen);
+  $("#vibrationToggle").addEventListener("change",event=>{
+    profile.vibration=event.target.checked;
+    saveProfile();
+    if(profile.vibration&&navigator.vibrate) navigator.vibrate(18);
+    showToast(profile.vibration?"Vibration on":"Vibration off");
+  });
+  $("#settingsModal").addEventListener("pointerdown",event=>{
+    if(event.target===$("#settingsModal")) closeSettings();
+  });
 }
 
 function showToast(message){
@@ -872,6 +1076,8 @@ function playSfx(kind,power=1){
   }else if(kind==="bomb"){
     tone(82,now,.34,.16,"sine",sfxGain,38);
     tone(760,now,.12,.045,"square",sfxGain,160);
+  }else if(kind==="zen"){
+    [261.63,329.63,392].forEach((f,i)=>tone(f,now+i*.12,.5,.026,"sine",sfxGain));
   }else if(kind==="mission"){
     [440,554.37,659.25].forEach((f,i)=>tone(f,now+i*.08,.3,.04,"triangle",sfxGain));
   }else if(kind==="level"){
@@ -1012,7 +1218,7 @@ function setupMissions(){
 
 function setupShop(){
   $("#shopBtn").addEventListener("click",()=>openShop());
-  $("#gameOverShopBtn").addEventListener("click",()=>{gameOverModal.classList.remove("open");openShop()});
+  $("#gameOverShopBtn").addEventListener("click",()=>openShop());
   $("#closeShopBtn").addEventListener("click",closeShop);
   $("#shopTabs").addEventListener("click",event=>{
     const button=event.target.closest("button[data-tab]");
@@ -1031,16 +1237,26 @@ function init(){
   setupAudioControls();
   setupMissions();
   setupShop();
+  setupModes();
   ensureMissions();
   renderMissions();
   generateTray();
+  updateModeUi();
+  renderMenu();
+  openMainMenu();
 
   $("#restartBtn").addEventListener("click",restartGame);
   $("#playAgainBtn").addEventListener("click",restartGame);
   document.addEventListener("pointerdown",unlockAudio,{once:true});
   document.addEventListener("keydown",event=>{
-    if(event.key==="Escape") closeShop();
-    if((event.key==="r"||event.key==="R")&&!shopModal.classList.contains("open")) restartGame();
+    if(event.key==="Escape"){
+      if($("#settingsModal").classList.contains("open")) closeSettings();
+      else if(shopModal.classList.contains("open")) closeShop();
+      else if($("#pauseModal").classList.contains("open")) resumeGame();
+      else pauseGame();
+    }
+    if((event.key==="r"||event.key==="R")&&!isBlockingOverlayOpen()) restartGame();
+    if(event.key===" "&&!isBlockingOverlayOpen()){event.preventDefault();pauseGame()}
   });
   window.addEventListener("blur",()=>{
     if(activeDrag){
