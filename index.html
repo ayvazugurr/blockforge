@@ -34,14 +34,32 @@
       <div><span>BEST</span><strong id="best">0</strong></div>
     </section>
 
+    <section class="level-card" aria-label="Player level">
+      <div class="level-row">
+        <strong>LEVEL <span id="levelValue">1</span></strong>
+        <span id="xpText">0 / 100 XP</span>
+      </div>
+      <div class="xp-track"><i id="xpFill"></i></div>
+    </section>
+
     <section class="board-wrap">
       <div id="boardGlow" class="board-glow"></div>
       <div id="board" class="board" role="grid" aria-label="8 by 8 game board"></div>
       <div id="fxLayer" class="fx-layer" aria-hidden="true"></div>
+      <div id="comboCallout" class="combo-callout" aria-live="polite"></div>
     </section>
 
     <p id="statusText" class="status">Drag a block onto the board</p>
     <section id="tray" class="tray" aria-label="Available blocks"></section>
+
+    <section class="missions-card" aria-label="Current missions">
+      <header>
+        <div><span class="eyebrow">FORGE ORDERS</span><h2>MISSIONS</h2></div>
+        <span id="missionCycle">SET 1</span>
+      </header>
+      <div id="missionsList" class="missions-list"></div>
+      <button id="newMissionsBtn" class="secondary-btn new-missions-btn" type="button" hidden>NEW MISSIONS</button>
+    </section>
 
     <section class="audio-card" aria-label="Audio controls">
       <label>
@@ -87,7 +105,7 @@
         <button type="button" data-tab="packs">SHAPES</button>
       </nav>
       <div id="shopGrid" class="shop-grid"></div>
-      <p class="shop-note">Coins are earned by clearing rows and columns.</p>
+      <p class="shop-note">Tap a product image to preview it. Coins are earned by clearing rows and columns.</p>
     </div>
   </div>
 
