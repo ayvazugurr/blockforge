@@ -874,6 +874,7 @@ function resetModeTimer(){
     timerRemainingMs=Math.max(0,timerRemainingMs-delta);
     updateTimerDisplay();
     if(timerRemainingMs<=0){
+      if(busy) return;
       clearInterval(timerInterval);
       timerInterval=null;
       endGame("time");
@@ -1257,6 +1258,10 @@ function init(){
     }
     if((event.key==="r"||event.key==="R")&&!isBlockingOverlayOpen()) restartGame();
     if(event.key===" "&&!isBlockingOverlayOpen()){event.preventDefault();pauseGame()}
+  });
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden&&currentMode&&!gameOver&&!paused) pauseGame();
+    lastTimerTick=performance.now();
   });
   window.addEventListener("blur",()=>{
     if(activeDrag){
