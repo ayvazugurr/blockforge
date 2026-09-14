@@ -37,6 +37,8 @@ const PACK_SHAPES = {
   ]
 };
 
+const BOMB_SHAPE = {id:"bomb",cells:[[0,0]],tier:1,special:"bomb"};
+
 const SHOP = {
   skins:[
     {id:"forge",name:"Forge",desc:"Polished metal blocks.",price:0,preview:["#6ed9ff","#3478ff"]},
@@ -65,8 +67,19 @@ const PALETTES = {
   neon:{one:"#c5ff4a",two:"#8b46ff",glow:"rgba(176,91,255,.5)"}
 };
 
+const MISSION_DEFS = [
+  {type:"placements",label:"Place 12 blocks",icon:"▦",target:12,coins:8,xp:30},
+  {type:"lines",label:"Clear 4 lines",icon:"✦",target:4,coins:12,xp:45},
+  {type:"scoreEarned",label:"Forge 1,200 score",icon:"◆",target:1200,coins:10,xp:40},
+  {type:"multiclears",label:"Make a double clear",icon:"×2",target:1,coins:14,xp:55},
+  {type:"bombs",label:"Detonate a Bomb Block",icon:"●",target:1,coins:10,xp:35},
+  {type:"lines",label:"Clear 7 lines",icon:"✧",target:7,coins:18,xp:65}
+];
+
 const defaults = {
   coins:0,best:0,musicOn:true,musicVolume:.32,sfxVolume:.72,
+  level:1,xp:0,missionCycle:1,missions:[],
+  stats:{placements:0,lines:0,scoreEarned:0,multiclears:0,bombs:0},
   owned:{skins:["forge"],palettes:["ocean"],themes:["midnight"],packs:[]},
   selected:{skin:"forge",palette:"ocean",theme:"midnight"}
 };
@@ -82,7 +95,9 @@ function loadProfile(){
         themes:[...new Set([...(defaults.owned.themes),...(stored.owned?.themes||[])])],
         packs:[...new Set(stored.owned?.packs||[])]
       },
-      selected:{...defaults.selected,...(stored.selected||{})}
+      selected:{...defaults.selected,...(stored.selected||{})},
+      stats:{...defaults.stats,...(stored.stats||{})},
+      missions:Array.isArray(stored.missions)?stored.missions:[]
     };
   }catch{return structuredClone(defaults)}
 }
@@ -129,12 +144,20 @@ function applyCosmetics(){
   document.documentElement.style.setProperty("--blockGlow",palette.glow);
 }
 
+function xpNeeded(){
+  return 100+(profile.level-1)*45;
+}
+
 function updateHud(){
   scoreEl.textContent = score.toLocaleString();
   comboEl.textContent = "×" + combo;
   bestEl.textContent = profile.best.toLocaleString();
   coinEl.textContent = profile.coins;
   shopCoinEl.textContent = profile.coins;
+  const needed=xpNeeded();
+  $("#levelValue").textContent=profile.level;
+  $("#xpText").textContent=profile.xp+" / "+needed+" XP";
+  $("#xpFill").style.width=Math.min(100,profile.xp/needed*100)+"%";
 }
 
 function makeBoard(){
@@ -215,6 +238,10 @@ function generateTray(){
     }
     picked.push(weightedShape(pool,fullness));
   }
+  const bombChance=Math.min(.16,.065+profile.level*.008);
+  if(Math.random()<bombChance){
+    picked[Math.floor(Math.random()*picked.length)]=BOMB_SHAPE;
+  }
   tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
   renderTray(true);
   if(audioContext) setTimeout(()=>playSfx("refill"),70);
@@ -225,6 +252,7 @@ function shapeElement(shape){
   const {width,height}=dimensions(shape);
   const block=document.createElement("div");
   block.className="tray-block";
+  if(shape.special) block.classList.add(shape.special);
   block.style.setProperty("--shape-w",width);
   block.style.setProperty("--shape-h",height);
   const mini=document.createElement("div");
@@ -283,6 +311,7 @@ function createGhost(shape){
   const {width,height}=dimensions(shape);
   const ghost=document.createElement("div");
   ghost.className="drag-ghost";
+  if(shape.special) ghost.classList.add(shape.special);
   ghost.style.gridTemplateColumns=`repeat(${width},var(--ghost-size))`;
   ghost.style.gridTemplateRows=`repeat(${height},var(--ghost-size))`;
   shape.cells.forEach(([x,y])=>{
@@ -437,9 +466,11 @@ function placeShape(entry,row,col){
     placed.push(index);
   });
   entry.used=true;
-  score+=entry.shape.cells.length*10;
+  const placementScore=entry.shape.cells.length*10;
+  score+=placementScore;
   profile.best=Math.max(profile.best,score);
-  saveProfile();
+  recordProgress({placements:1,scoreEarned:placementScore});
+  addXP(Math.max(1,entry.shape.cells.length));
   renderBoard();
   placed.forEach((index,i)=>{
     setTimeout(()=>cells[index]?.classList.add("placed"),i*25);
@@ -448,6 +479,11 @@ function placeShape(entry,row,col){
   playSfx("drop");
   if(navigator.vibrate) navigator.vibrate(16);
   updateHud();
+
+  if(entry.shape.special==="bomb"){
+    detonateBomb(row,col);
+    return;
+  }
 
   const lines=findCompleteLines();
   if(lines.length){
@@ -480,6 +516,8 @@ function clearLines(lines){
   const earned=lineCount*4+Math.max(0,lineCount-1)*3+Math.max(0,combo-1)*2;
   const bonus=lineCount*180+Math.max(0,lineCount-1)*120+combo*35;
   statusEl.textContent=lineCount>1?`${lineCount} LINES • COMBO ×${combo}`:`LINE CLEAR • COMBO ×${combo}`;
+  showComboCallout(lineCount);
+  if(lineCount>1||combo>1) triggerBoardShake();
   document.querySelector(".board-wrap").classList.remove("combo-clear");
   void document.querySelector(".board-wrap").offsetWidth;
   document.querySelector(".board-wrap").classList.add("combo-clear");
@@ -496,10 +534,159 @@ function clearLines(lines){
     score+=bonus;
     profile.coins+=earned;
     profile.best=Math.max(profile.best,score);
+    recordProgress({
+      lines:lineCount,
+      multiclears:lineCount>1?1:0,
+      scoreEarned:bonus
+    });
+    addXP(lineCount*12+Math.max(0,combo-1)*4);
     saveProfile();
     renderBoard();
     scorePop("+"+bonus+"  •  +"+earned+" COINS");
     showToast("+"+earned+" coins forged");
+    updateHud();
+    busy=false;
+    afterTurn();
+  },520);
+}
+
+function ensureMissions(){
+  if(profile.missions.length) return;
+  const start=(profile.missionCycle-1)%MISSION_DEFS.length;
+  profile.missions=Array.from({length:3},(_,index)=>{
+    const def=MISSION_DEFS[(start+index*2)%MISSION_DEFS.length];
+    return {
+      ...def,start:Number(profile.stats[def.type]||0),done:false
+    };
+  });
+  saveProfile();
+}
+
+function missionProgress(mission){
+  return Math.max(0,Number(profile.stats[mission.type]||0)-mission.start);
+}
+
+function renderMissions(){
+  ensureMissions();
+  const list=$("#missionsList");
+  list.innerHTML="";
+  profile.missions.forEach(mission=>{
+    const progress=Math.min(mission.target,missionProgress(mission));
+    const item=document.createElement("article");
+    item.className="mission"+(mission.done?" done":"");
+    item.innerHTML=`
+      <span class="mission-icon">${mission.done?"✓":mission.icon}</span>
+      <div class="mission-copy">
+        <strong>${mission.label}</strong>
+        <div class="mission-progress">
+          <span class="mission-track"><i style="width:${progress/mission.target*100}%"></i></span>
+          <span>${progress}/${mission.target}</span>
+        </div>
+      </div>
+      <span class="mission-reward">● ${mission.coins}<br>+${mission.xp} XP</span>`;
+    list.appendChild(item);
+  });
+  $("#missionCycle").textContent="SET "+profile.missionCycle;
+  $("#newMissionsBtn").hidden=!profile.missions.every(mission=>mission.done);
+}
+
+function addXP(amount){
+  profile.xp+=amount;
+  let levels=0;
+  while(profile.xp>=xpNeeded()){
+    profile.xp-=xpNeeded();
+    profile.level++;
+    profile.coins+=15;
+    levels++;
+  }
+  if(levels){
+    showComboCallout("LEVEL "+profile.level);
+    showToast("Level up! +15 coins");
+    playSfx("level");
+  }
+  saveProfile();
+  updateHud();
+}
+
+function checkMissions(){
+  const completed=[];
+  profile.missions.forEach(mission=>{
+    if(!mission.done&&missionProgress(mission)>=mission.target){
+      mission.done=true;
+      profile.coins+=mission.coins;
+      profile.xp+=mission.xp;
+      completed.push(mission);
+    }
+  });
+  if(completed.length){
+    playSfx("mission");
+    showToast("Mission complete! Rewards claimed");
+    while(profile.xp>=xpNeeded()){
+      profile.xp-=xpNeeded();
+      profile.level++;
+      profile.coins+=15;
+    }
+  }
+  saveProfile();
+  updateHud();
+  renderMissions();
+}
+
+function recordProgress(changes){
+  Object.entries(changes).forEach(([type,amount])=>{
+    profile.stats[type]=Number(profile.stats[type]||0)+amount;
+  });
+  checkMissions();
+}
+
+function showComboCallout(lineCount){
+  const callout=$("#comboCallout");
+  const label=typeof lineCount==="string"
+    ?lineCount
+    :(lineCount>=3?"BLOCKFORGE!":lineCount===2?"AMAZING!":combo>=4?"UNSTOPPABLE!":combo===3?"GREAT!":combo===2?"GOOD!":"CLEAR!");
+  callout.textContent=label;
+  callout.classList.remove("show");
+  void callout.offsetWidth;
+  callout.classList.add("show");
+}
+
+function triggerBoardShake(){
+  const wrap=document.querySelector(".board-wrap");
+  wrap.classList.remove("shake");
+  void wrap.offsetWidth;
+  wrap.classList.add("shake");
+  setTimeout(()=>wrap.classList.remove("shake"),380);
+}
+
+function detonateBomb(row,col){
+  busy=true;
+  const affected=[];
+  for(let r=row-1;r<=row+1;r++){
+    for(let c=col-1;c<=col+1;c++){
+      if(r>=0&&r<SIZE&&c>=0&&c<SIZE) affected.push(r*SIZE+c);
+    }
+  }
+  const removed=affected.filter(index=>grid[index]).length;
+  statusEl.textContent="BOMB BLOCK!";
+  showComboCallout("BOOM!");
+  triggerBoardShake();
+  playSfx("bomb");
+  if(navigator.vibrate) navigator.vibrate([28,20,45]);
+  affected.forEach((index,i)=>setTimeout(()=>{
+    cells[index]?.classList.add("clearing");
+    burstAt(index,12);
+  },i*22));
+  setTimeout(()=>{
+    affected.forEach(index=>grid[index]=false);
+    const bonus=Math.max(40,removed*35);
+    const earned=Math.max(2,Math.floor(removed/2));
+    score+=bonus;
+    profile.coins+=earned;
+    profile.best=Math.max(profile.best,score);
+    recordProgress({bombs:1,scoreEarned:bonus});
+    addXP(18+removed*2);
+    renderBoard();
+    scorePop("BOOM! +"+bonus+" • +"+earned+" COINS");
     updateHud();
     busy=false;
     afterTurn();
@@ -682,6 +869,13 @@ function playSfx(kind,power=1){
     [523.25,659.25,783.99].forEach((f,i)=>tone(f,now+i*.08,.26,.045,"triangle",sfxGain));
   }else if(kind==="refill"){
     [330,440,554.37].forEach((f,i)=>tone(f,now+i*.075,.18,.025,"sine",sfxGain));
+  }else if(kind==="bomb"){
+    tone(82,now,.34,.16,"sine",sfxGain,38);
+    tone(760,now,.12,.045,"square",sfxGain,160);
+  }else if(kind==="mission"){
+    [440,554.37,659.25].forEach((f,i)=>tone(f,now+i*.08,.3,.04,"triangle",sfxGain));
+  }else if(kind==="level"){
+    [392,523.25,659.25,783.99].forEach((f,i)=>tone(f,now+i*.09,.36,.045,"sine",sfxGain));
   }else if(kind==="restart"){
     tone(180,now,.18,.04,"sine",sfxGain,360);
   }
@@ -728,7 +922,11 @@ function openShop(tab=activeShopTab){
   renderShop();
 }
 
+let shopPreviewTimer=null;
+
 function closeShop(){
+  clearTimeout(shopPreviewTimer);
+  applyCosmetics();
   shopModal.classList.remove("open");
   shopModal.setAttribute("aria-hidden","true");
 }
@@ -743,6 +941,8 @@ function renderShop(){
     const preview=node.querySelector(".item-preview");
     preview.style.setProperty("--preview1",item.preview[0]);
     preview.style.setProperty("--preview2",item.preview[1]);
+    preview.title="Tap to preview";
+    preview.addEventListener("click",()=>previewShopItem(activeShopTab,item));
     const button=node.querySelector(".buy-btn");
     const owned=profile.owned[activeShopTab].includes(item.id);
     const selected=activeShopTab!=="packs"&&profile.selected[activeShopTab.slice(0,-1)]===item.id;
@@ -758,6 +958,26 @@ function renderShop(){
     shopGrid.appendChild(node);
   });
   updateHud();
+}
+
+function previewShopItem(category,item){
+  unlockAudio();
+  clearTimeout(shopPreviewTimer);
+  if(category==="packs"){
+    showToast(item.name+": "+item.desc);
+    return;
+  }
+  if(category==="skins") document.body.dataset.skin=item.id;
+  if(category==="themes") document.body.dataset.theme=item.id;
+  if(category==="palettes"){
+    const palette=PALETTES[item.id];
+    document.documentElement.style.setProperty("--block1",palette.one);
+    document.documentElement.style.setProperty("--block2",palette.two);
+    document.documentElement.style.setProperty("--blockGlow",palette.glow);
+  }
+  showToast("Preview: "+item.name);
+  playSfx("pickup");
+  shopPreviewTimer=setTimeout(applyCosmetics,1900);
 }
 
 function shopAction(category,item){
@@ -779,6 +999,17 @@ function shopAction(category,item){
   renderShop();
 }
 
+function setupMissions(){
+  $("#newMissionsBtn").addEventListener("click",()=>{
+    profile.missionCycle++;
+    profile.missions=[];
+    ensureMissions();
+    renderMissions();
+    showToast("New missions received");
+    playSfx("refill");
+  });
+}
+
 function setupShop(){
   $("#shopBtn").addEventListener("click",()=>openShop());
   $("#gameOverShopBtn").addEventListener("click",()=>{gameOverModal.classList.remove("open");openShop()});
@@ -798,7 +1029,10 @@ function init(){
   renderBoard();
   updateHud();
   setupAudioControls();
+  setupMissions();
   setupShop();
+  ensureMissions();
+  renderMissions();
   generateTray();
 
   $("#restartBtn").addEventListener("click",restartGame);
