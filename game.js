@@ -2,6 +2,9 @@
 
 const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
+const BACKUP_KEY = "blockforge-v1-backup";
+const SAVE_SCHEMA = 1;
+const APP_VERSION = "1.0.0";
 
 const BASE_SHAPES = [
   {id:"single",cells:[[0,0]],tier:1},
@@ -171,44 +174,88 @@ const defaults = {
   selected:{skin:"forge",palette:"ocean",theme:"midnight"}
 };
 
+function saveChecksum(value){
+  const text=typeof value==="string"?value:JSON.stringify(value);
+  let hash=2166136261;
+  for(let index=0;index<text.length;index++){
+    hash^=text.charCodeAt(index);
+    hash=Math.imul(hash,16777619);
+  }
+  return (hash>>>0).toString(16).padStart(8,"0");
+}
+
+function createSaveEnvelope(data){
+  const payload=structuredClone(data);
+  return {
+    schemaVersion:SAVE_SCHEMA,
+    appVersion:APP_VERSION,
+    savedAt:new Date().toISOString(),
+    checksum:saveChecksum(payload),
+    data:payload
+  };
+}
+
+function decodeSave(raw){
+  if(!raw) return null;
+  const parsed=typeof raw==="string"?JSON.parse(raw):raw;
+  if(parsed&&parsed.data&&Number(parsed.schemaVersion)>=1){
+    if(parsed.checksum!==saveChecksum(parsed.data)) throw new Error("Save checksum mismatch");
+    return parsed.data;
+  }
+  return parsed;
+}
+
+function normalizeProfile(stored={}){
+  return {
+    ...defaults,...stored,
+    owned:{
+      skins:[...new Set([...(defaults.owned.skins),...(stored.owned?.skins||[])])],
+      palettes:[...new Set([...(defaults.owned.palettes),...(stored.owned?.palettes||[])])],
+      themes:[...new Set([...(defaults.owned.themes),...(stored.owned?.themes||[])])],
+      packs:[...new Set(stored.owned?.packs||[])]
+    },
+    selected:{...defaults.selected,...(stored.selected||{})},
+    stats:{...defaults.stats,...(stored.stats||{})},
+    powers:{...defaults.powers,...(stored.powers||{})},
+    daily:{...defaults.daily,...(stored.daily||{})},
+    dailyMissions:{
+      date:stored.dailyMissions?.date||"",
+      items:Array.isArray(stored.dailyMissions?.items)?stored.dailyMissions.items:[]
+    },
+    achievements:{...defaults.achievements,...(stored.achievements||{})},
+    progression:{
+      claimedLevels:Array.isArray(stored.progression?.claimedLevels)
+        ?stored.progression.claimedLevels
+        :Array.from({length:Math.max(0,Number(stored.level||1)-1)},(_,index)=>index+2)
+    },
+    campaign:{
+      unlocked:Math.max(1,Math.min(30,Number(stored.campaign?.unlocked||1))),
+      stars:{...(stored.campaign?.stars||{})},
+      best:{...(stored.campaign?.best||{})}
+    },
+    modeBests:{
+      classic:Number(stored.modeBests?.classic??stored.best??0),
+      timed:Number(stored.modeBests?.timed??0),
+      zen:Number(stored.modeBests?.zen??0)
+    },
+    missions:Array.isArray(stored.missions)?stored.missions:[]
+  };
+}
+
 function loadProfile(){
   try{
-    const stored = JSON.parse(localStorage.getItem(SAVE_KEY) || "{}");
-    return {
-      ...defaults,...stored,
-      owned:{
-        skins:[...new Set([...(defaults.owned.skins),...(stored.owned?.skins||[])])],
-        palettes:[...new Set([...(defaults.owned.palettes),...(stored.owned?.palettes||[])])],
-        themes:[...new Set([...(defaults.owned.themes),...(stored.owned?.themes||[])])],
-        packs:[...new Set(stored.owned?.packs||[])]
-      },
-      selected:{...defaults.selected,...(stored.selected||{})},
-      stats:{...defaults.stats,...(stored.stats||{})},
-      powers:{...defaults.powers,...(stored.powers||{})},
-      daily:{...defaults.daily,...(stored.daily||{})},
-      dailyMissions:{
-        date:stored.dailyMissions?.date||"",
-        items:Array.isArray(stored.dailyMissions?.items)?stored.dailyMissions.items:[]
-      },
-      achievements:{...defaults.achievements,...(stored.achievements||{})},
-      progression:{
-        claimedLevels:Array.isArray(stored.progression?.claimedLevels)
-          ?stored.progression.claimedLevels
-          :Array.from({length:Math.max(0,Number(stored.level||1)-1)},(_,index)=>index+2)
-      },
-      campaign:{
-        unlocked:Math.max(1,Math.min(30,Number(stored.campaign?.unlocked||1))),
-        stars:{...(stored.campaign?.stars||{})},
-        best:{...(stored.campaign?.best||{})}
-      },
-      modeBests:{
-        classic:Number(stored.modeBests?.classic??stored.best??0),
-        timed:Number(stored.modeBests?.timed??0),
-        zen:Number(stored.modeBests?.zen??0)
-      },
-      missions:Array.isArray(stored.missions)?stored.missions:[]
-    };
-  }catch{return structuredClone(defaults)}
+    const primary=localStorage.getItem(SAVE_KEY);
+    return normalizeProfile(decodeSave(primary)||{});
+  }catch(primaryError){
+    try{
+      const backup=localStorage.getItem(BACKUP_KEY);
+      const recovered=normalizeProfile(decodeSave(backup)||{});
+      recovered.recoveredSave=true;
+      return recovered;
+    }catch{
+      return structuredClone(defaults);
+    }
+  }
 }
 
 let profile = loadProfile();
@@ -256,7 +303,50 @@ const shopTemplate = $("#shopItemTemplate");
 const cells = [];
 
 function saveProfile(){
-  localStorage.setItem(SAVE_KEY,JSON.stringify(profile));
+  try{
+    const previous=localStorage.getItem(SAVE_KEY);
+    if(previous){
+      try{decodeSave(previous);localStorage.setItem(BACKUP_KEY,previous)}catch{}
+    }
+    const envelope=createSaveEnvelope(profile);
+    localStorage.setItem(SAVE_KEY,JSON.stringify(envelope));
+    const status=$("#saveStatus");
+    if(status) status.textContent="Save schema v"+SAVE_SCHEMA+" • backed up "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  }catch(error){
+    console.warn("BlockForge save failed",error);
+    const status=$("#saveStatus");
+    if(status) status.textContent="Save could not be written — export a backup";
+  }
+}
+
+function exportSave(){
+  const envelope=createSaveEnvelope(profile);
+  const blob=new Blob([JSON.stringify(envelope,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;
+  link.download="blockforge-save-"+localDateKey()+".json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showToast("Save backup exported");
+}
+
+async function importSaveFile(file){
+  if(!file) return;
+  try{
+    const imported=decodeSave(await file.text());
+    if(!imported||typeof imported!=="object"||!imported.owned||!imported.stats) throw new Error("Invalid save");
+    localStorage.setItem(BACKUP_KEY,localStorage.getItem(SAVE_KEY)||"");
+    profile=normalizeProfile(imported);
+    saveProfile();
+    applyCosmetics();
+    updateHud();renderMissions();renderDailyMissions();renderAchievements();renderLevelRoad();renderMenu();
+    showToast("Save restored successfully");
+  }catch{
+    showToast("This backup is invalid or corrupted");
+  }
 }
 
 function applyCosmetics(){
