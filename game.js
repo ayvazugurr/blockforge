@@ -1442,6 +1442,7 @@ function useSecondChance(){
 }
 
 function burstAt(index,count){
+  while(fxLayer.childElementCount>140) fxLayer.firstElementChild?.remove();
   const multiplier=profile.effectIntensity==="low"?.45:profile.effectIntensity==="high"?1.65:1;
   count=Math.max(2,Math.round(count*multiplier));
   const cell=cells[index];
@@ -2274,6 +2275,85 @@ function setupShop(){
   shopModal.addEventListener("pointerdown",event=>{if(event.target===shopModal) closeShop()});
 }
 
+let deferredInstallPrompt=null;
+
+function isStandalone(){
+  return window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
+}
+
+async function requestPersistentStorage(){
+  try{
+    if(navigator.storage?.persist) await navigator.storage.persist();
+  }catch{}
+}
+
+function setupRelease(){
+  const installButton=$("#installAppBtn");
+  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(isiOS&&!isStandalone()) installButton.hidden=false;
+
+  window.addEventListener("beforeinstallprompt",event=>{
+    event.preventDefault();
+    deferredInstallPrompt=event;
+    installButton.hidden=false;
+  });
+
+  installButton.addEventListener("click",async()=>{
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      const choice=await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt=null;
+      installButton.hidden=true;
+      showToast(choice.outcome==="accepted"?"BlockForge installed":"Install cancelled");
+    }else if(isiOS){
+      showToast("Safari: Share → Add to Home Screen");
+    }else{
+      showToast(isStandalone()?"BlockForge is already installed":"Use your browser menu → Install app");
+    }
+  });
+
+  window.addEventListener("appinstalled",()=>{
+    deferredInstallPrompt=null;
+    installButton.hidden=true;
+    showToast("BlockForge installed!");
+  });
+
+  if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
+    navigator.serviceWorker.register("./sw.js").then(registration=>{
+      registration.addEventListener("updatefound",()=>{
+        const worker=registration.installing;
+        worker?.addEventListener("statechange",()=>{
+          if(worker.state==="installed"&&navigator.serviceWorker.controller){
+            showToast("Update ready — reopen BlockForge");
+          }
+        });
+      });
+    }).catch(()=>showToast("Offline mode could not start"));
+  }
+
+  $("#exportSaveBtn").addEventListener("click",exportSave);
+  $("#importSaveBtn").addEventListener("click",()=>$("#importSaveFile").click());
+  $("#importSaveFile").addEventListener("change",event=>{
+    importSaveFile(event.target.files?.[0]);
+    event.target.value="";
+  });
+
+  window.addEventListener("online",()=>showToast("Back online"));
+  window.addEventListener("offline",()=>showToast("Offline mode active"));
+  window.addEventListener("pagehide",saveProfile);
+  window.addEventListener("error",saveProfile);
+  window.addEventListener("unhandledrejection",saveProfile);
+  document.addEventListener("pointerdown",requestPersistentStorage,{once:true});
+
+  if(profile.recoveredSave){
+    delete profile.recoveredSave;
+    saveProfile();
+    setTimeout(()=>showToast("Recovered the previous safe backup"),500);
+  }
+
+  requestAnimationFrame(()=>document.body.classList.add("app-ready"));
+}
+
 function init(){
   syncLevelUnlocks();
   saveProfile();
@@ -2286,6 +2366,7 @@ function init(){
   setupShop();
   setupModes();
   setupV07();
+  setupRelease();
   ensureMissions();
   ensureDailyContent();
   renderMissions();
@@ -2297,6 +2378,9 @@ function init(){
   updateModeUi();
   renderMenu();
   openMainMenu();
+  const requestedMode=new URLSearchParams(location.search).get("mode");
+  if(requestedMode==="levels") setTimeout(openLevelSelect,180);
+  else if(["classic","timed","zen"].includes(requestedMode)) setTimeout(()=>startMode(requestedMode),180);
   setTimeout(()=>openTutorial(),260);
 
   $("#restartBtn").addEventListener("click",restartGame);
