@@ -1,0 +1,56 @@
+{
+  "name": "BlockForge",
+  "short_name": "BlockForge",
+  "description": "Build, clear and forge your way through an evolving block puzzle.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#050b14",
+  "theme_color": "#07111f",
+  "lang": "en",
+  "categories": [
+    "games",
+    "entertainment"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Play Classic",
+      "short_name": "Classic",
+      "url": "./?mode=classic",
+      "icons": [
+        {
+          "src": "icons/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Play Levels",
+      "short_name": "Levels",
+      "url": "./?mode=levels",
+      "icons": [
+        {
+          "src": "icons/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}
