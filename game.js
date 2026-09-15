@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.8";
+const APP_VERSION = "1.0.9";
 
 const TETROMINOES = {
  I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],
@@ -1868,7 +1868,7 @@ function restartGame(){
 }
 
 function isBlockingOverlayOpen(){
-  return ["#mainMenuModal","#pauseModal","#shopModal","#settingsModal","#dailyRewardModal","#achievementsModal","#levelRoadModal","#levelSelectModal","#levelCompleteModal","#tutorialModal"]
+  return ["#installGuideModal","#mainMenuModal","#pauseModal","#shopModal","#settingsModal","#dailyRewardModal","#achievementsModal","#levelRoadModal","#levelSelectModal","#levelCompleteModal","#tutorialModal"]
     .some(selector=>$(selector).classList.contains("open"));
 }
 
@@ -1965,11 +1965,11 @@ function resumeGame(){
 }
 
 async function toggleFullscreen(){
-  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isiOS=isIOS();
   if(isStandalone()){showToast("BlockForge is already running fullscreen");return}
   if(!document.fullscreenEnabled||!document.documentElement.requestFullscreen){
-    showToast(isiOS?"Safari: Share → Add to Home Screen, then open the icon":"Install BlockForge for fullscreen play");
-    return;
+    if(isiOS){openInstallGuide();return}
+    showToast("Install BlockForge for fullscreen play");return;
   }
   try{
     if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
@@ -1980,7 +1980,7 @@ async function toggleFullscreen(){
 function refreshFullscreenButton(){
   const button=$("#settingsFullscreenBtn");
   if(!button) return;
-  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isiOS=isIOS();
   button.textContent=isStandalone()?"FULLSCREEN ACTIVE":document.fullscreenElement?"EXIT FULLSCREEN":isiOS?"INSTALL FULLSCREEN":"ENTER FULLSCREEN";
 }
 function openSettings(){
@@ -2401,6 +2401,16 @@ function setupShop(){
 
 let deferredInstallPrompt=null;
 
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)}
+function openInstallGuide(){
+  closeSettings();
+  const modal=$("#installGuideModal");
+  modal.classList.add("open");modal.setAttribute("aria-hidden","false");
+}
+function closeInstallGuide(){
+  const modal=$("#installGuideModal");
+  modal.classList.remove("open");modal.setAttribute("aria-hidden","true");
+}
 function isStandalone(){
   return window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
 }
@@ -2457,7 +2467,7 @@ function setupRelease(){
   window.addEventListener("resize",cancelDrag);
   window.visualViewport?.addEventListener("resize",cancelDrag);
   const installButton=$("#installAppBtn");
-  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isiOS=isIOS();
   if(isiOS&&!isStandalone()) installButton.hidden=false;
 
   window.addEventListener("beforeinstallprompt",event=>{
@@ -2474,10 +2484,21 @@ function setupRelease(){
       installButton.hidden=true;
       showToast(choice.outcome==="accepted"?"BlockForge installed":"Install cancelled");
     }else if(isiOS){
-      showToast("Safari: Share → Add to Home Screen");
+      openInstallGuide();
     }else{
       showToast(isStandalone()?"BlockForge is already installed":"Use your browser menu → Install app");
     }
+  });
+
+  $("#closeInstallGuideBtn").addEventListener("click",closeInstallGuide);
+  $("#installGuideModal").addEventListener("pointerdown",event=>{
+    if(event.target===$("#installGuideModal")) closeInstallGuide();
+  });
+  $("#copyGameLinkBtn").addEventListener("click",async()=>{
+    try{
+      await navigator.clipboard.writeText("https://ayvazugurr.github.io/blockforge/");
+      showToast("Game link copied — paste it in Safari");
+    }catch{showToast("Open ayvazugurr.github.io/blockforge in Safari")}
   });
 
   window.addEventListener("appinstalled",()=>{
@@ -2557,7 +2578,8 @@ function init(){
   document.addEventListener("pointerdown",unlockAudio,{once:true});
   document.addEventListener("keydown",event=>{
     if(event.key==="Escape"){
-      if($("#tutorialModal").classList.contains("open")) finishTutorial();
+      if($("#installGuideModal").classList.contains("open")) closeInstallGuide();
+      else if($("#tutorialModal").classList.contains("open")) finishTutorial();
       else if($("#levelCompleteModal").classList.contains("open")) openMainMenu();
       else if($("#levelSelectModal").classList.contains("open")) closeLevelSelect();
       else if($("#levelRoadModal").classList.contains("open")) closeLevelRoad();
@@ -2579,6 +2601,7 @@ function init(){
 }
 
 init();
+
 
 
 
