@@ -1,8 +1,8 @@
-# BlockForge v1.0.10
+# BlockForge v1.0.11
 
-Current release: grouped settings, reliable Holo ⭐ H signature, tetromino-only shape generation, explicit update controls and an iPhone fullscreen installation guide and safe-area display fix.
+Current release: the new pastel clay BF cover is used for the PWA icon, maskable icon and branded launch screen; gameplay, progression and save data remain unchanged.
 
-> Deployment refresh: the complete v1.0.10 file set is published together after release validation.
+> Deployment refresh: the complete v1.0.11 cover update is published together after release validation.
 
 ## Earlier v1.0.1 player-test patch
 
@@ -95,3 +95,4 @@ For local testing, open `index.html` in a modern browser. PWA installation and o
 - Press `R` to restart, `Space` to pause or `Esc` to close the active panel.
 
 No build step or external JavaScript dependency is required.
+
