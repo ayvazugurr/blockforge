@@ -1,5 +1,5 @@
 "use strict";
-const CACHE_NAME="blockforge-v1.0.7";
+const CACHE_NAME="blockforge-v1.0.8";
 const CORE_ASSETS=["./","./index.html","./style.css","./game.js","./manifest.webmanifest","./icons/icon.svg","./icons/icon-maskable.svg"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE_ASSETS.map(url=>new Request(url,{cache:"reload"})))));
@@ -23,5 +23,6 @@ self.addEventListener("fetch",event=>{
 self.addEventListener("message",event=>{
   if(event.data?.type==="ACTIVATE_UPDATE") event.waitUntil(self.skipWaiting());
 });
+
 
 
