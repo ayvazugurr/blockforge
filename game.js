@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.7";
+const APP_VERSION = "1.0.8";
 
 const TETROMINOES = {
  I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],
@@ -1965,18 +1965,26 @@ function resumeGame(){
 }
 
 async function toggleFullscreen(){
-  try{
-    if(!document.fullscreenElement){
-      await document.documentElement.requestFullscreen();
-    }else{
-      await document.exitFullscreen();
-    }
-  }catch{
-    showToast("Fullscreen is not supported here");
+  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(isStandalone()){showToast("BlockForge is already running fullscreen");return}
+  if(!document.fullscreenEnabled||!document.documentElement.requestFullscreen){
+    showToast(isiOS?"Safari: Share → Add to Home Screen, then open the icon":"Install BlockForge for fullscreen play");
+    return;
   }
+  try{
+    if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
+    else await document.exitFullscreen();
+    refreshFullscreenButton();
+  }catch{showToast("Fullscreen could not start")}
 }
-
+function refreshFullscreenButton(){
+  const button=$("#settingsFullscreenBtn");
+  if(!button) return;
+  const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  button.textContent=isStandalone()?"FULLSCREEN ACTIVE":document.fullscreenElement?"EXIT FULLSCREEN":isiOS?"INSTALL FULLSCREEN":"ENTER FULLSCREEN";
+}
 function openSettings(){
+  refreshFullscreenButton();
   $("#vibrationToggle").checked=profile.vibration;
   $("#colorblindToggle").checked=profile.colorblind;
   $("#effectIntensity").value=profile.effectIntensity;
@@ -2005,6 +2013,7 @@ function setupModes(){
   $("#closeSettingsBtn").addEventListener("click",closeSettings);
   $("#fullscreenBtn").addEventListener("click",toggleFullscreen);
   $("#settingsFullscreenBtn").addEventListener("click",toggleFullscreen);
+  document.addEventListener("fullscreenchange",refreshFullscreenButton);
   $("#vibrationToggle").addEventListener("change",event=>{
     profile.vibration=event.target.checked;
     saveProfile();
@@ -2570,5 +2579,6 @@ function init(){
 }
 
 init();
+
 
 
