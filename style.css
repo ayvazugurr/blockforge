@@ -649,3 +649,21 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 @keyframes splashFloat{50%{transform:translateY(-8px) scale(1.025)}}
 @keyframes splashLoad{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 
+
+/* Holo signature: independent of preview, terrain and accessibility symbols. */
+.holo-mark{
+ display:none;position:absolute;inset:0;align-items:center;justify-content:center;
+ gap:1px;pointer-events:none;user-select:none;z-index:3;
+ font-size:clamp(11px,3vw,18px);line-height:1;
+}
+.holo-star{font-family:"Apple Color Emoji","Segoe UI Emoji",sans-serif;font-size:1em}
+.holo-letter{font-family:Arial,sans-serif;font-size:.78em;font-weight:900;color:#fff;text-shadow:0 1px 2px #132f58,0 0 3px #132f58}
+body[data-skin="holo"] .cell.filled:not(.locked):not(.ice)>.holo-mark,
+body[data-skin="holo"] .mini-cell>.holo-mark,
+body[data-skin="holo"] .ghost-cell>.holo-mark{display:flex}
+.mini-cell>.holo-mark{font-size:8px}
+.ghost-cell>.holo-mark{font-size:calc(var(--ghost-size,40px)*.32)}
+body[data-colorblind="on"] .cell>.holo-mark{
+ inset:auto 1px 1px auto;font-size:clamp(7px,1.6vw,10px)
+}
+
