@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.4";
+const APP_VERSION = "1.0.5";
 
 const TETROMINOES = {
  I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],
@@ -98,7 +98,7 @@ const SHOP = {
     {id:"crystal",name:"Crystal",desc:"Cut crystal edges and glow.",price:55,preview:["#dffbff","#6d66ff"]},
     {id:"candy",name:"Candy",desc:"Soft, rounded arcade blocks.",price:80,preview:["#ff9edc","#8b5dff"]},
     {id:"ember",name:"Ember",desc:"Copper edges and a molten core.",price:240,preview:["#ffe06d","#ff3b22"]},
-    {id:"holo",name:"Holo",desc:"Prismatic facets and etched borders.",price:360,preview:["#a8fff1","#a36dff"]}
+    {id:"holo",name:"Holo",desc:"Prismatic facets, etched borders and a signature ⭐ H.",price:360,preview:["#a8fff1","#a36dff"]}
   ],
   palettes:[
     {id:"ocean",name:"Ocean",desc:"Cool blue forge energy.",price:0,preview:["#6ed9ff","#3478ff"]},
@@ -257,6 +257,7 @@ let score = 0;
 let combo = 0;
 let busy = false;
 let shapeBag = [];
+let lastShapeVariants = {};
 let boardRevision = 0;
 
 // Delayed effects may only modify the board that scheduled them.
@@ -411,6 +412,17 @@ function commitBest(){
   }
 }
 
+function addHoloMark(cell){
+ const mark=document.createElement("span");
+ mark.className="holo-mark";
+ mark.setAttribute("aria-hidden","true");
+ const star=document.createElement("span");
+ star.className="holo-star";star.textContent="⭐";
+ const letter=document.createElement("span");
+ letter.className="holo-letter";letter.textContent="H";
+ mark.appendChild(star);mark.appendChild(letter);
+ cell.appendChild(mark);
+}
 function makeBoard(){
   boardEl.innerHTML = "";
   cells.length = 0;
@@ -419,6 +431,7 @@ function makeBoard(){
     cell.className = "cell";
     cell.setAttribute("role","gridcell");
     cell.dataset.index = i;
+    addHoloMark(cell);
     boardEl.appendChild(cell);
     cells.push(cell);
   }
@@ -467,7 +480,11 @@ function weightedShape(candidates){
  const family=pool[Math.floor(Math.random()*pool.length)];
  shapeBag=shapeBag.filter(value=>value!==family);
  const variants=candidates.filter(shape=>shape.family===family);
- return variants[Math.floor(Math.random()*variants.length)];
+ const different=variants.filter(shape=>shape.id!==lastShapeVariants[family]);
+ const rotations=different.length?different:variants;
+ const chosen=rotations[Math.floor(Math.random()*rotations.length)];
+ lastShapeVariants[family]=chosen.id;
+ return chosen;
 }
 
 function generateTray(){
@@ -508,7 +525,10 @@ function shapeElement(shape){
   for(let y=0;y<height;y++){
     for(let x=0;x<width;x++){
       const unit=document.createElement("span");
-      if(shape.cells.some(c=>c[0]===x&&c[1]===y)) unit.className="mini-cell";
+      if(shape.cells.some(c=>c[0]===x&&c[1]===y)){
+        unit.className="mini-cell";
+        if(!shape.special) addHoloMark(unit);
+      }
       mini.appendChild(unit);
     }
   }
@@ -569,6 +589,7 @@ function createGhost(shape){
   shape.cells.forEach(([x,y])=>{
     const unit=document.createElement("span");
     unit.className="ghost-cell";
+    if(!shape.special) addHoloMark(unit);
     unit.style.gridColumn=x+1;
     unit.style.gridRow=y+1;
     ghost.appendChild(unit);
@@ -1370,6 +1391,7 @@ function snapshotMove(){
   lastMoveSnapshot={
     grid:[...grid],
     shapeBag:[...shapeBag],
+    lastShapeVariants:{...lastShapeVariants},
     tray:structuredClone(tray),
     score,combo,movesRemaining,
     levelProgress:structuredClone(levelProgress),
@@ -1427,6 +1449,7 @@ function usePower(power){
     boardRevision++;
     grid=[...snapshot.grid];
     shapeBag=[...(snapshot.shapeBag||[])];
+    lastShapeVariants={...(snapshot.lastShapeVariants||{})};
     tray=structuredClone(snapshot.tray);
     score=snapshot.score;
     combo=snapshot.combo;
@@ -1815,6 +1838,7 @@ function restartGame(){
   document.body.classList.remove("hammer-mode");
   unlockAudio();
   shapeBag=[];
+  lastShapeVariants={};
   grid=Array(SIZE*SIZE).fill(false);
   iceCells=Array(SIZE*SIZE).fill(false);
   lockedCells=Array(SIZE*SIZE).fill(false);
