@@ -123,7 +123,10 @@ body[data-skin="candy"] .cell.filled,body[data-skin="candy"] .mini-cell,body[dat
 .tray-slot:has(.tray-block):hover{border-color:color-mix(in srgb,var(--accent) 42%,transparent);background:rgba(255,255,255,.06)}
 .tray-slot.used{opacity:.22}
 .tray-block{position:relative;cursor:grab;touch-action:none;user-select:none;transition:.16s transform,.16s filter}
-.tray-block:hover{transform:translateY(-3px) scale(1.04);filter:brightness(1.1)}
+@media(hover:hover) and (pointer:fine){.tray-block:hover{transform:translateY(-3px) scale(1.04);filter:brightness(1.1)}}
+.tray-slot{touch-action:none;-webkit-touch-callout:none;user-select:none;cursor:grab;min-height:100px}
+.tray-slot .mini-grid{pointer-events:none}
+.tray-slot.entering:active{animation:none;opacity:1}
 .tray-block.picked{animation:pickup .22s ease;opacity:.22}
 .mini-grid{display:grid;gap:3px}
 .mini-cell{width:20px;height:20px;border-radius:6px;position:relative}
