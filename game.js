@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.9";
+const APP_VERSION = "1.0.10";
 
 const TETROMINOES = {
  I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],
@@ -1981,7 +1981,7 @@ function refreshFullscreenButton(){
   const button=$("#settingsFullscreenBtn");
   if(!button) return;
   const isiOS=isIOS();
-  button.textContent=isStandalone()?"FULLSCREEN ACTIVE":document.fullscreenElement?"EXIT FULLSCREEN":isiOS?"INSTALL FULLSCREEN":"ENTER FULLSCREEN";
+  button.textContent=document.fullscreenElement||window.matchMedia("(display-mode: fullscreen)").matches?"FULLSCREEN ACTIVE":isStandalone()?"APP MODE ACTIVE":isiOS?"INSTALL FULLSCREEN":"ENTER FULLSCREEN";
 }
 function openSettings(){
   refreshFullscreenButton();
@@ -2601,6 +2601,7 @@ function init(){
 }
 
 init();
+
 
 
 
