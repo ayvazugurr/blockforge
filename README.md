@@ -1,6 +1,6 @@
-# BlockForge v1.0.9
+# BlockForge v1.0.10
 
-Current release: grouped settings, reliable Holo ⭐ H signature, tetromino-only shape generation, explicit update controls and an iPhone fullscreen installation guide.
+Current release: grouped settings, reliable Holo ⭐ H signature, tetromino-only shape generation, explicit update controls and an iPhone fullscreen installation guide and safe-area display fix.
 
 > Deployment refresh: this commit intentionally republishes the complete v1.0.8 file set after the multi-file release.
 
