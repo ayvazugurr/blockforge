@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.2";
+const APP_VERSION = "1.0.3";
 
 const BASE_SHAPES = [
   {id:"single",cells:[[0,0]],tier:1},
@@ -279,6 +279,14 @@ let tray = [];
 let score = 0;
 let combo = 0;
 let busy = false;
+let boardRevision = 0;
+
+// Delayed effects may only modify the board that scheduled them.
+function scheduleBoardTask(callback,delay){
+  const revision=boardRevision;
+  return setTimeout(()=>{if(revision===boardRevision) callback()},delay);
+}
+
 let gameOver = false;
 let currentMode = null;
 let paused = true;
@@ -503,7 +511,7 @@ function generateTray(){
   }
   tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
   renderTray(true);
-  if(audioContext) setTimeout(()=>playSfx("refill"),70);
+  if(audioContext) scheduleBoardTask(()=>playSfx("refill"),70);
   statusEl.textContent="Drag a block onto the board";
 }
 
@@ -767,7 +775,7 @@ function placeShape(entry,row,col){
   addXP(Math.max(1,entry.shape.cells.length));
   renderBoard();
   placed.forEach((index,i)=>{
-    setTimeout(()=>cells[index]?.classList.add("placed"),i*25);
+    scheduleBoardTask(()=>cells[index]?.classList.add("placed"),i*25);
   });
   renderTray();
   playSfx("drop");
@@ -814,14 +822,14 @@ function clearLines(lines){
   void document.querySelector(".board-wrap").offsetWidth;
   document.querySelector(".board-wrap").classList.add("combo-clear");
   unique.forEach((index,i)=>{
-    setTimeout(()=>{
+    scheduleBoardTask(()=>{
       cells[index]?.classList.add("clearing");
       burstAt(index,i%2===0?10:6);
     },Math.min(i*13,150));
   });
   playSfx("clear",lineCount);
   if(profile.vibration&&navigator.vibrate) navigator.vibrate([20,25,32]);
-  setTimeout(()=>{
+  scheduleBoardTask(()=>{
     clearCampaignTerrain(unique);
     unique.forEach(i=>grid[i]=false);
     if(currentMode==="level"){
@@ -1115,11 +1123,11 @@ function detonateLaser(row,col,direction){
   triggerBoardShake();
   playSfx("laser");
   if(profile.vibration&&navigator.vibrate) navigator.vibrate([18,15,28]);
-  affected.forEach((index,i)=>setTimeout(()=>{
+  affected.forEach((index,i)=>scheduleBoardTask(()=>{
     cells[index]?.classList.add("clearing");
     burstAt(index,9);
   },i*28));
-  setTimeout(()=>{
+  scheduleBoardTask(()=>{
     clearCampaignTerrain(affected);
     affected.forEach(index=>grid[index]=false);
     const bonus=120+removed*30;
@@ -1146,11 +1154,11 @@ function detonateBomb(row,col,label="BOOM!"){
   triggerBoardShake();
   playSfx("bomb");
   if(profile.vibration&&navigator.vibrate) navigator.vibrate([28,20,45]);
-  affected.forEach((index,i)=>setTimeout(()=>{
+  affected.forEach((index,i)=>scheduleBoardTask(()=>{
     cells[index]?.classList.add("clearing");
     burstAt(index,12);
   },i*22));
-  setTimeout(()=>{
+  scheduleBoardTask(()=>{
     clearCampaignTerrain(affected);
     affected.forEach(index=>grid[index]=false);
     const bonus=Math.max(40,removed*35);
@@ -1413,6 +1421,7 @@ function usePower(power){
   unlockAudio();
   if(!currentMode||paused||gameOver||busy){showToast("Start or resume a game first");return}
   if(profile.powers[power]<=0){showToast("No "+power+" power-ups left");return}
+  cancelDrag();
   if(power==="hammer"){
     activePower=activePower==="hammer"?null:"hammer";
     document.body.classList.toggle("hammer-mode",activePower==="hammer");
@@ -1430,6 +1439,7 @@ function usePower(power){
   }else if(power==="undo"){
     if(!lastMoveSnapshot){showToast("No move to undo");return}
     const snapshot=lastMoveSnapshot;
+    boardRevision++;
     grid=[...snapshot.grid];
     tray=structuredClone(snapshot.tray);
     score=snapshot.score;
@@ -1469,6 +1479,7 @@ function handleHammer(event){
   const index=Number(cell.dataset.index);
   if(!grid[index]){showToast("Choose a filled cell");return}
   if(!consumePower("hammer")) return;
+  busy=true;
   lastMoveSnapshot=null;
   clearCampaignTerrain([index]);
   grid[index]=false;
@@ -1479,7 +1490,7 @@ function handleHammer(event){
   burstAt(index,10);
   playSfx("power");
   if(profile.vibration&&navigator.vibrate) navigator.vibrate(20);
-  setTimeout(()=>{renderBoard();checkGameOver()},260);
+  scheduleBoardTask(()=>{renderBoard();busy=false;checkGameOver()},260);
   statusEl.textContent="Cell forged away";
 }
 
@@ -1744,7 +1755,7 @@ function afterTurn(){
     generateTray();
     if(gameOver) return;
   }
-  setTimeout(checkGameOver,40);
+  scheduleBoardTask(checkGameOver,40);
 }
 
 function checkGameOver(){
@@ -1771,12 +1782,12 @@ function zenRescue(){
   const rescued=occupied.slice(0,Math.min(10,occupied.length));
   statusEl.textContent="ZEN RESCUE";
   showComboCallout("BREATHE");
-  rescued.forEach((index,i)=>setTimeout(()=>{
+  rescued.forEach((index,i)=>scheduleBoardTask(()=>{
     cells[index]?.classList.add("clearing");
     burstAt(index,5);
   },i*24));
   playSfx("zen");
-  setTimeout(()=>{
+  scheduleBoardTask(()=>{
     rescued.forEach(index=>grid[index]=false);
     tray=[];
     renderBoard();
@@ -1811,6 +1822,7 @@ function endGame(reason="full"){
 
 function restartGame(){
   if(!currentMode) return;
+  boardRevision++;
   if(activeDrag) endDrag({pointerId:activeDrag.pointerId,type:"pointercancel",clientX:-999,clientY:-999});
   activePower=null;
   lastMoveSnapshot=null;
@@ -2501,3 +2513,4 @@ function init(){
 }
 
 init();
+
