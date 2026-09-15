@@ -1,5 +1,5 @@
 "use strict";
-const CACHE_NAME="blockforge-v1.0.2";
+const CACHE_NAME="blockforge-v1.0.3";
 const CORE_ASSETS=["./","./index.html","./style.css","./game.js","./manifest.webmanifest","./icons/icon.svg","./icons/icon-maskable.svg"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE_ASSETS)));
@@ -16,3 +16,4 @@ self.addEventListener("fetch",event=>{
     return cached||fetch(event.request);
   }));
 });
+
