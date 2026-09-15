@@ -4,7 +4,7 @@
   "description": "Build, clear and forge your way through an evolving block puzzle.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait-primary",
   "background_color": "#050b14",
   "theme_color": "#07111f",
@@ -52,5 +52,10 @@
         }
       ]
     }
+  ],
+  "display_override": [
+    "fullscreen",
+    "standalone"
   ]
 }
+
