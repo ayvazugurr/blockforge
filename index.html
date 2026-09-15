@@ -102,18 +102,6 @@
       <div id="dailyMissionsList" class="missions-list"></div>
     </section>
 
-    <section class="audio-card" aria-label="Audio controls">
-      <label>
-        <span>♫ MUSIC</span>
-        <input id="musicVolume" type="range" min="0" max="100" value="32">
-        <output id="musicValue">32%</output>
-      </label>
-      <label>
-        <span>✦ EFFECTS</span>
-        <input id="sfxVolume" type="range" min="0" max="100" value="72">
-        <output id="sfxValue">72%</output>
-      </label>
-    </section>
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -255,38 +243,68 @@
         <div><span class="eyebrow">GAME OPTIONS</span><h2>SETTINGS</h2></div>
         <button id="closeSettingsBtn" class="close-btn" type="button" aria-label="Close settings">×</button>
       </header>
-      <label class="setting-row">
-        <span><strong>VIBRATION</strong><small>Haptic feedback on supported devices</small></span>
-        <input id="vibrationToggle" type="checkbox" checked>
-      </label>
-      <label class="setting-row">
-        <span><strong>COLOR BLIND MODE</strong><small>Add patterns and symbols beyond color</small></span>
-        <input id="colorblindToggle" type="checkbox">
-      </label>
-      <label class="setting-row select-row">
-        <span><strong>EFFECT INTENSITY</strong><small>Control particles, flashes and shake</small></span>
-        <select id="effectIntensity">
-          <option value="low">LOW</option><option value="normal">NORMAL</option><option value="high">HIGH</option>
-        </select>
-      </label>
-      <label class="setting-row select-row">
-        <span><strong>SOUNDTRACK</strong><small>Choose the music atmosphere</small></span>
-        <select id="musicStyle">
-          <option value="ambient">AMBIENT</option><option value="focus">FOCUS</option><option value="arcade">ARCADE</option>
-        </select>
-      </label>
-      <button id="replayTutorialBtn" class="secondary-btn" type="button">REPLAY TUTORIAL</button>
-      <div class="save-tools">
-        <button id="exportSaveBtn" class="secondary-btn" type="button">EXPORT SAVE</button>
-        <button id="importSaveBtn" class="secondary-btn" type="button">IMPORT SAVE</button>
-        <input id="importSaveFile" type="file" accept="application/json,.json" hidden>
+      <div class="settings-stack">
+        <details class="settings-section" open>
+          <summary><span>⚙</span><b>GAMEPLAY</b><small>Controls & accessibility</small></summary>
+          <div class="settings-section-body">
+            <label class="setting-row">
+              <span><strong>VIBRATION</strong><small>Haptic feedback on supported devices</small></span>
+              <input id="vibrationToggle" type="checkbox" checked>
+            </label>
+            <label class="setting-row">
+              <span><strong>COLOR BLIND MODE</strong><small>Add patterns and symbols beyond color</small></span>
+              <input id="colorblindToggle" type="checkbox">
+            </label>
+            <label class="setting-row select-row">
+              <span><strong>EFFECT INTENSITY</strong><small>Control particles, flashes and shake</small></span>
+              <select id="effectIntensity">
+                <option value="low">LOW</option><option value="normal">NORMAL</option><option value="high">HIGH</option>
+              </select>
+            </label>
+            <button id="replayTutorialBtn" class="secondary-btn" type="button">REPLAY TUTORIAL</button>
+          </div>
+        </details>
+
+        <details class="settings-section">
+          <summary><span>♫</span><b>AUDIO</b><small>Music & effects</small></summary>
+          <div class="settings-section-body">
+            <label class="setting-row select-row">
+              <span><strong>SOUNDTRACK</strong><small>Choose the music atmosphere</small></span>
+              <select id="musicStyle">
+                <option value="ambient">AMBIENT</option><option value="focus">FOCUS</option><option value="arcade">ARCADE</option>
+              </select>
+            </label>
+            <section class="audio-card settings-audio" aria-label="Audio controls">
+              <label>
+                <span>♫ MUSIC</span>
+                <input id="musicVolume" type="range" min="0" max="100" value="32">
+                <output id="musicValue">32%</output>
+              </label>
+              <label>
+                <span>✦ EFFECTS</span>
+                <input id="sfxVolume" type="range" min="0" max="100" value="72">
+                <output id="sfxValue">72%</output>
+              </label>
+            </section>
+          </div>
+        </details>
+
+        <button id="settingsFullscreenBtn" class="settings-fullscreen-btn" type="button">ENTER FULLSCREEN</button>
+
+        <details class="settings-section">
+          <summary><span>☁</span><b>DATA & UPDATES</b><small>Backup, restore & version</small></summary>
+          <div id="updateTools" class="settings-section-body">
+            <div class="save-tools">
+              <button id="exportSaveBtn" class="secondary-btn" type="button">CREATE BACKUP</button>
+              <button id="importSaveBtn" class="secondary-btn" type="button">RESTORE BACKUP</button>
+              <input id="importSaveFile" type="file" accept="application/json,.json" hidden>
+            </div>
+            <p id="saveStatus" class="save-status">Automatic recovery enabled</p>
+          </div>
+        </details>
       </div>
-      <p id="saveStatus" class="save-status">Save schema v1 • automatic recovery enabled</p>
-      <button id="settingsFullscreenBtn" class="secondary-btn" type="button">TOGGLE FULLSCREEN</button>
-      <p class="shop-note">Music and effect volumes can be changed below the game board.</p>
     </div>
   </div>
-
   <div id="shopModal" class="modal" aria-hidden="true">
     <div class="modal-card shop-card">
       <header class="shop-header">
@@ -319,3 +337,4 @@
   <script src="game.js"></script>
 </body>
 </html>
+
