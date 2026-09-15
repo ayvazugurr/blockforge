@@ -4,41 +4,27 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.3";
+const APP_VERSION = "1.0.4";
 
-const BASE_SHAPES = [
-  {id:"single",cells:[[0,0]],tier:1},
-  {id:"duo-h",cells:[[0,0],[1,0]],tier:1},
-  {id:"duo-v",cells:[[0,0],[0,1]],tier:1},
-  {id:"tri-h",cells:[[0,0],[1,0],[2,0]],tier:1},
-  {id:"tri-v",cells:[[0,0],[0,1],[0,2]],tier:1},
-  {id:"corner-3",cells:[[0,0],[0,1],[1,1]],tier:1},
-  {id:"square-4",cells:[[0,0],[1,0],[0,1],[1,1]],tier:2},
-  {id:"line-4h",cells:[[0,0],[1,0],[2,0],[3,0]],tier:2},
-  {id:"line-4v",cells:[[0,0],[0,1],[0,2],[0,3]],tier:2},
-  {id:"l-4",cells:[[0,0],[0,1],[0,2],[1,2]],tier:2},
-  {id:"j-4",cells:[[1,0],[1,1],[1,2],[0,2]],tier:2},
-  {id:"t-4",cells:[[0,0],[1,0],[2,0],[1,1]],tier:2},
-  {id:"zig-4",cells:[[0,0],[1,0],[1,1],[2,1]],tier:2},
-  {id:"line-5h",cells:[[0,0],[1,0],[2,0],[3,0],[4,0]],tier:3},
-  {id:"line-5v",cells:[[0,0],[0,1],[0,2],[0,3],[0,4]],tier:3}
-];
-
-const PACK_SHAPES = {
-  extended:[
-    {id:"plus-5",cells:[[1,0],[0,1],[1,1],[2,1],[1,2]],tier:3},
-    {id:"u-5",cells:[[0,0],[2,0],[0,1],[1,1],[2,1]],tier:3},
-    {id:"p-5",cells:[[0,0],[1,0],[0,1],[1,1],[0,2]],tier:3},
-    {id:"corner-5",cells:[[0,0],[0,1],[0,2],[1,2],[2,2]],tier:3},
-    {id:"step-5",cells:[[0,0],[0,1],[1,1],[1,2],[2,2]],tier:3}
-  ],
-  wild:[
-    {id:"square-9",cells:[[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]],tier:4},
-    {id:"hook-6",cells:[[0,0],[0,1],[0,2],[0,3],[1,3],[2,3]],tier:4},
-    {id:"cross-8",cells:[[1,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2],[1,3]],tier:4},
-    {id:"stairs-6",cells:[[0,0],[0,1],[1,1],[1,2],[2,2],[2,3]],tier:4}
-  ]
+const TETROMINOES = {
+ I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],
+ T:[[0,0],[1,0],[2,0],[1,1]], L:[[0,0],[0,1],[0,2],[1,2]],
+ J:[[1,0],[1,1],[1,2],[0,2]], S:[[1,0],[2,0],[0,1],[1,1]],
+ Z:[[0,0],[1,0],[1,1],[2,1]]
 };
+const SHAPE_HUES = {I:190,O:48,T:278,L:28,J:220,S:135,Z:350};
+const BASE_SHAPES = Object.entries(TETROMINOES).flatMap(([family,initial])=>{
+ let cells=initial,seen=new Set(),variants=[];
+ for(let rotation=0;rotation<4;rotation++){
+   const minX=Math.min(...cells.map(c=>c[0])),minY=Math.min(...cells.map(c=>c[1]));
+   cells=cells.map(([x,y])=>[x-minX,y-minY]).sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+   const key=JSON.stringify(cells);
+   if(!seen.has(key)){seen.add(key);variants.push({id:family+"-"+rotation,family,cells,tier:2})}
+   cells=cells.map(([x,y])=>[-y,x]);
+ }
+ return variants;
+});
+
 
 const BOMB_SHAPE = {id:"bomb",cells:[[0,0]],tier:1,special:"bomb"};
 const SPECIAL_SHAPES = [
@@ -69,15 +55,6 @@ const CAMPAIGN_LEVELS = Array.from({length:30},(_,index)=>{
     ice:level<11?0:Math.min(8,2+Math.floor((level-11)/3)),
     locks:level<16?0:Math.min(6,2+Math.floor((level-16)/3))};
 });
-const CAMPAIGN_SHAPES = [
-  {id:"elbow-up",cells:[[0,0],[1,0],[0,1],[0,2]],tier:2},
-  {id:"elbow-wide",cells:[[0,0],[1,0],[2,0],[2,1]],tier:2},
-  {id:"tee-up",cells:[[1,0],[0,1],[1,1],[2,1]],tier:2},
-  {id:"tee-right",cells:[[0,0],[0,1],[1,1],[0,2]],tier:2},
-  {id:"zig-v",cells:[[0,0],[0,1],[1,1],[1,2]],tier:2},
-  {id:"zag-h",cells:[[1,0],[2,0],[0,1],[1,1]],tier:2},
-  {id:"rectangle-6",cells:[[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]],tier:3}
-];
 
 const TUTORIAL_STEPS = [
   {icon:"▦",title:"PLACE BLOCKS",text:"Drag a shape onto the board. The highlighted cells show exactly where it will land."},
@@ -139,10 +116,7 @@ const SHOP = {
     {id:"dawn",name:"Dawn Forge",desc:"Earned by reaching Level 7.",price:0,unlockLevel:7,preview:["#48294f","#ff9f68"]},
     {id:"void",name:"Void Core",desc:"Earned by reaching Level 15.",price:0,unlockLevel:15,preview:["#11101e","#622cff"]}
   ],
-  packs:[
-    {id:"extended",name:"Extended Set",desc:"5 new tactical shapes.",price:75,preview:["#52e6c1","#2a78ff"]},
-    {id:"wild",name:"Wild Set",desc:"4 large high-risk shapes.",price:125,preview:["#ffd85d","#ff4f87"]}
-  ]
+  packs:[]
 };
 
 const PALETTES = {
@@ -219,16 +193,19 @@ function decodeSave(raw){
 }
 
 function normalizeProfile(stored={}){
-  return {
+ const refund=stored.tetrominoPackRefunded?0:[...new Set(stored.owned?.packs||[])]
+   .reduce((sum,id)=>sum+({extended:75,wild:125}[id]||0),0);
+ return {
     ...defaults,...stored,
+    coins:Number(stored.coins||0)+refund,
+    tetrominoPackRefunded:true,
     owned:{
       skins:[...new Set([...(defaults.owned.skins),...(stored.owned?.skins||[])])],
       palettes:[...new Set([...(defaults.owned.palettes),...(stored.owned?.palettes||[])])],
       themes:[...new Set([...(defaults.owned.themes),...(stored.owned?.themes||[])])],
       packs:[...new Set(stored.owned?.packs||[])]
     },
-    activePacks:(Array.isArray(stored.activePacks)?stored.activePacks:(stored.owned?.packs||[]))
-      .filter(pack=>(stored.owned?.packs||[]).includes(pack)&&PACK_SHAPES[pack]),
+    activePacks:[],
     selected:{...defaults.selected,...(stored.selected||{})},
     stats:{...defaults.stats,...(stored.stats||{})},
     powers:{...defaults.powers,...(stored.powers||{})},
@@ -279,6 +256,7 @@ let tray = [];
 let score = 0;
 let combo = 0;
 let busy = false;
+let shapeBag = [];
 let boardRevision = 0;
 
 // Delayed effects may only modify the board that scheduled them.
@@ -379,7 +357,24 @@ async function importSaveFile(file){
   }
 }
 
+function paintShape(element,family,paletteId=profile.selected.palette){
+ element.dataset.family=family||"";
+ if(!family||!(family in SHAPE_HUES)){
+   ["--block1","--block2","--blockGlow"].forEach(key=>element.style.removeProperty(key));
+   return;
+ }
+ const offset={ocean:0,sunset:20,neon:40,frost:10,magma:-15}[paletteId]||0;
+ const hue=(SHAPE_HUES[family]+offset+360)%360;
+ const saturation=paletteId==="frost"?65:88;
+ element.style.setProperty("--block1",`hsl(${hue} ${saturation}% 70%)`);
+ element.style.setProperty("--block2",`hsl(${hue} ${saturation}% 45%)`);
+ element.style.setProperty("--blockGlow",`hsl(${hue} 90% 60% / .38)`);
+}
+function repaintShapes(paletteId=profile.selected.palette){
+ document.querySelectorAll("[data-family]").forEach(element=>paintShape(element,element.dataset.family,paletteId));
+}
 function applyCosmetics(){
+  repaintShapes();
   const palette = PALETTES[profile.selected.palette] || PALETTES.ocean;
   document.body.dataset.theme = profile.selected.theme;
   document.body.dataset.skin = profile.selected.skin;
@@ -432,7 +427,8 @@ function makeBoard(){
 function renderBoard(){
   cells.forEach((cell,i)=>{
     cell.className="cell"+(grid[i]?" filled":"")+(iceCells[i]?" ice":"")+(lockedCells[i]?" locked":"");
-    cell.dataset.symbol=lockedCells[i]?"🔒":iceCells[i]?"❄":grid[i]?"◆":"";
+    paintShape(cell,typeof grid[i]==="string"?grid[i]:null);
+    cell.dataset.symbol=lockedCells[i]?"🔒":iceCells[i]?"❄":grid[i]?(typeof grid[i]==="string"?grid[i]:"◆"):"";
   });
   previewIndexes = [];
 }
@@ -444,13 +440,7 @@ function dimensions(shape){
   };
 }
 
-function allShapes(){
-  const shapes = [...BASE_SHAPES,...(currentMode==="level"?CAMPAIGN_SHAPES:[])];
-  profile.activePacks.filter(pack=>profile.owned.packs.includes(pack)).forEach(pack=>{
-    if(PACK_SHAPES[pack]) shapes.push(...PACK_SHAPES[pack]);
-  });
-  return shapes;
-}
+function allShapes(){return BASE_SHAPES;}
 
 function canPlace(shape,row,col){
   return shape.cells.every(([x,y])=>{
@@ -469,56 +459,45 @@ function canFit(shape){
   return false;
 }
 
-function weightedShape(candidates,fullness){
-  let wantedTier;
-  const roll=Math.random();
-  if(currentMode==="level") wantedTier=roll<(fullness>.75?.3:.1)?1:roll<.72?2:3;
-  else if(fullness>.68) wantedTier=roll<.68?1:(roll<.93?2:3);
-  else if(fullness>.42) wantedTier=roll<.38?1:(roll<.82?2:3);
-  else wantedTier=roll<.18?1:(roll<.67?2:(roll<.94?3:4));
-  const preferred=candidates.filter(s=>s.tier===wantedTier);
-  const pool=preferred.length?preferred:candidates;
-  return pool[Math.floor(Math.random()*pool.length)];
+function weightedShape(candidates){
+ const families=[...new Set(candidates.map(shape=>shape.family))];
+ if(!shapeBag.length) shapeBag=Object.keys(TETROMINOES);
+ const available=shapeBag.filter(family=>families.includes(family));
+ const pool=available.length?available:families;
+ const family=pool[Math.floor(Math.random()*pool.length)];
+ shapeBag=shapeBag.filter(value=>value!==family);
+ const variants=candidates.filter(shape=>shape.family===family);
+ return variants[Math.floor(Math.random()*variants.length)];
 }
 
 function generateTray(){
-  const shapes=allShapes();
-  const fullness=grid.filter(Boolean).length/(SIZE*SIZE);
-  const fitting=shapes.filter(canFit);
-  if(!fitting.length){handleNoMoves();return}
-  const picked=[];
-  for(let i=0;i<3;i++){
-    let pool=shapes.filter(s=>!picked.some(p=>p.id===s.id));
-    if(!pool.length) pool=shapes;
-    if(currentMode==="level"&&picked.some(shape=>shape.cells.length<3)){
-      const larger=pool.filter(shape=>shape.cells.length>=3);
-      if(larger.length) pool=larger;
-    }
-    if(i===0 || fullness>.58){
-      const safe=pool.filter(canFit);
-      if(safe.length) pool=safe;
-    }
-    picked.push(weightedShape(pool,fullness));
-  }
-  const specialChance=currentMode==="level"?.08:Math.min(.24,.105+profile.level*.009);
-  if(Math.random()<specialChance){
-    const unlockedSpecials=SPECIAL_SHAPES.filter(shape=>currentMode==="level"
-      ?(shape.special==="bomb"||(currentCampaignLevel>=6&&shape.special.startsWith("laser")))
-      :profile.level>=SPECIAL_UNLOCKS[shape.special]);
-    const special=unlockedSpecials[Math.floor(Math.random()*unlockedSpecials.length)];
-    const smallIndex=currentMode==="level"?picked.findIndex(shape=>shape.cells.length<3):-1;
-    picked[smallIndex>=0?smallIndex:Math.floor(Math.random()*picked.length)]=special;
-  }
-  tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
-  renderTray(true);
-  if(audioContext) scheduleBoardTask(()=>playSfx("refill"),70);
-  statusEl.textContent="Drag a block onto the board";
+ const shapes=allShapes(),fitting=shapes.filter(canFit);
+ if(!fitting.length){handleNoMoves();return}
+ const picked=[];
+ for(let i=0;i<3;i++){
+   // At least one legal move, three different families, never two straight bars.
+   const pool=(i===0?fitting:shapes).filter(shape=>!picked.some(p=>p.family===shape.family));
+   picked.push(weightedShape(pool));
+ }
+ if(Math.random()<.08){
+   const unlocked=SPECIAL_SHAPES.filter(shape=>currentMode==="level"
+     ?(shape.special==="bomb"||(currentCampaignLevel>=6&&shape.special.startsWith("laser")))
+     :profile.level>=SPECIAL_UNLOCKS[shape.special]);
+   const effect=unlocked[Math.floor(Math.random()*unlocked.length)];
+   const index=Math.floor(Math.random()*picked.length);
+   picked[index]={...picked[index],special:effect.special};
+ }
+ tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
+ renderTray(true);
+ if(audioContext) scheduleBoardTask(()=>playSfx("refill"),70);
+ statusEl.textContent="Drag a block onto the board";
 }
 
 function shapeElement(shape){
   const {width,height}=dimensions(shape);
   const block=document.createElement("div");
   block.className="tray-block";
+  paintShape(block,shape.family);
   if(shape.special) block.classList.add(shape.special);
   block.style.setProperty("--shape-w",width);
   block.style.setProperty("--shape-h",height);
@@ -583,6 +562,7 @@ function createGhost(shape){
   const {width,height}=dimensions(shape);
   const ghost=document.createElement("div");
   ghost.className="drag-ghost";
+  paintShape(ghost,shape.family);
   if(shape.special) ghost.classList.add(shape.special);
   ghost.style.gridTemplateColumns=`repeat(${width},var(--ghost-size))`;
   ghost.style.gridTemplateRows=`repeat(${height},var(--ghost-size))`;
@@ -753,7 +733,7 @@ function placeShape(entry,row,col){
   const placed=[];
   entry.shape.cells.forEach(([x,y])=>{
     const index=(row+y)*SIZE+(col+x);
-    grid[index]=true;
+    grid[index]=entry.shape.family||true;
     placed.push(index);
   });
   entry.used=true;
@@ -782,7 +762,8 @@ function placeShape(entry,row,col){
   if(profile.vibration&&navigator.vibrate) navigator.vibrate(16);
   updateHud();
 
-  if(entry.shape.special&&activateSpecial(entry.shape.special,row,col)) return;
+  const [effectX,effectY]=entry.shape.cells[0];
+  if(entry.shape.special&&activateSpecial(entry.shape.special,row+effectY,col+effectX)) return;
 
   const lines=findCompleteLines();
   if(lines.length){
@@ -1136,7 +1117,9 @@ function detonateLaser(row,col,direction){
     recordProgress({scoreEarned:bonus});
     addXP(14+removed*2);
     renderBoard();scorePop(label+" +"+bonus+" • +"+earned+" COINS");updateHud();
-    busy=false;afterTurn();
+    busy=false;
+    const lines=findCompleteLines();
+    if(lines.length) clearLines(lines);else afterTurn();
   },520);
 }
 
@@ -1172,7 +1155,8 @@ function detonateBomb(row,col,label="BOOM!"){
     scorePop("BOOM! +"+bonus+" • +"+earned+" COINS");
     updateHud();
     busy=false;
-    afterTurn();
+    const lines=findCompleteLines();
+    if(lines.length) clearLines(lines);else afterTurn();
   },520);
 }
 
@@ -1385,6 +1369,7 @@ function updatePowerHud(){
 function snapshotMove(){
   lastMoveSnapshot={
     grid:[...grid],
+    shapeBag:[...shapeBag],
     tray:structuredClone(tray),
     score,combo,movesRemaining,
     levelProgress:structuredClone(levelProgress),
@@ -1441,6 +1426,7 @@ function usePower(power){
     const snapshot=lastMoveSnapshot;
     boardRevision++;
     grid=[...snapshot.grid];
+    shapeBag=[...(snapshot.shapeBag||[])];
     tray=structuredClone(snapshot.tray);
     score=snapshot.score;
     combo=snapshot.combo;
@@ -1828,6 +1814,7 @@ function restartGame(){
   lastMoveSnapshot=null;
   document.body.classList.remove("hammer-mode");
   unlockAudio();
+  shapeBag=[];
   grid=Array(SIZE*SIZE).fill(false);
   iceCells=Array(SIZE*SIZE).fill(false);
   lockedCells=Array(SIZE*SIZE).fill(false);
@@ -2260,6 +2247,8 @@ function closeShop(){
 }
 
 function renderShop(){
+  if(activeShopTab==="packs") activeShopTab="skins";
+  document.querySelectorAll('#shopTabs [data-tab="packs"]').forEach(button=>button.hidden=true);
   document.querySelectorAll("#shopTabs button").forEach(btn=>btn.classList.toggle("active",btn.dataset.tab===activeShopTab));
   shopGrid.innerHTML="";
   SHOP[activeShopTab].forEach(item=>{
@@ -2305,6 +2294,7 @@ function previewShopItem(category,item){
   if(category==="skins") document.body.dataset.skin=item.id;
   if(category==="themes") document.body.dataset.theme=item.id;
   if(category==="palettes"){
+    repaintShapes(item.id);
     const palette=PALETTES[item.id];
     document.documentElement.style.setProperty("--block1",palette.one);
     document.documentElement.style.setProperty("--block2",palette.two);
@@ -2316,6 +2306,7 @@ function previewShopItem(category,item){
 }
 
 function shopAction(category,item){
+  if(category==="packs"){showToast("All seven tetromino families are now included");return}
   unlockAudio();
   if(item.unlockLevel&&profile.level<item.unlockLevel){
     showToast("Reach Level "+item.unlockLevel+" to unlock");
@@ -2513,4 +2504,3 @@ function init(){
 }
 
 init();
-
