@@ -667,3 +667,17 @@ body[data-colorblind="on"] .cell>.holo-mark{
  inset:auto 1px 1px auto;font-size:clamp(7px,1.6vw,10px)
 }
 
+
+/* v1.0.7: render the Holo signature through the skin itself for reliable iOS display. */
+body[data-skin="holo"] .holo-mark{display:none!important}
+body[data-skin="holo"] .cell.filled:not(.locked):not(.ice):not(.preview-valid):not(.preview-invalid)::before,
+body[data-skin="holo"] .tray-block:not(.bomb):not(.golden):not(.rainbow):not(.mystery):not(.laser-h):not(.laser-v) .mini-cell::before,
+body[data-skin="holo"] .drag-ghost:not(.bomb):not(.golden):not(.rainbow):not(.mystery):not(.laser-h):not(.laser-v) .ghost-cell::before{
+ content:"⭐ H";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+ z-index:5;color:#fff;font-family:"Apple Color Emoji","Segoe UI Emoji",Arial,sans-serif;
+ font-size:clamp(11px,3vw,17px);font-weight:900;line-height:1;letter-spacing:-1px;
+ text-shadow:0 1px 2px #132f58,0 0 4px #132f58;pointer-events:none;
+}
+body[data-skin="holo"] .tray-block .mini-cell::before{font-size:8px;letter-spacing:-2px}
+body[data-skin="holo"] .drag-ghost .ghost-cell::before{font-size:calc(var(--ghost-size,40px)*.31)}
+
