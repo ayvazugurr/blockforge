@@ -2,7 +2,7 @@
 
 Current release: grouped settings, reliable Holo ⭐ H signature, tetromino-only shape generation, explicit update controls and an iPhone fullscreen installation guide and safe-area display fix.
 
-> Deployment refresh: this commit intentionally republishes the complete v1.0.8 file set after the multi-file release.
+> Deployment refresh: the complete v1.0.10 file set is published together after release validation.
 
 ## Earlier v1.0.1 player-test patch
 
