@@ -585,13 +585,10 @@ body[data-skin="holo"] .cell.filled:not(.locked),body[data-skin="holo"] .tray-bl
   transition:.55s opacity,.55s visibility;pointer-events:none
 }
 body.app-ready .splash-screen{opacity:0;visibility:hidden}
-.splash-logo{
-  width:112px;height:112px;padding:10px;border-radius:34px;background:linear-gradient(145deg,#7ee6ff,#3478ff);
-  box-shadow:0 0 50px rgba(70,183,255,.48),inset 0 3px rgba(255,255,255,.52);animation:splashFloat 1.8s ease-in-out infinite
-}
-.splash-logo span{
-  width:100%;height:100%;display:grid;place-items:center;border:2px solid rgba(5,18,38,.3);border-radius:27px;
-  color:#06101d;font:900 31px Orbitron
+.splash-cover{
+  width:128px;height:128px;display:block;border-radius:32px;object-fit:cover;
+  box-shadow:0 18px 52px rgba(1,7,19,.5),0 0 32px rgba(126,166,210,.18);
+  animation:splashFloat 1.8s ease-in-out infinite
 }
 .splash-screen h1{margin:25px 0 5px;font:900 27px Orbitron;letter-spacing:.1em}
 .splash-screen p{color:#8fa9c7;font:700 8px Orbitron;letter-spacing:.34em}
@@ -718,4 +715,5 @@ html{background:#050b14}
  html,body{min-height:100dvh;background-color:#050b14}
  body:before{content:"";position:fixed;z-index:-1;inset:0;background:linear-gradient(155deg,var(--bg2),var(--bg) 60%)}
 }
+
 
