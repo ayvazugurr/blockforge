@@ -1,8 +1,8 @@
 "use strict";
-const CACHE_NAME="blockforge-v1.0.5";
+const CACHE_NAME="blockforge-v1.0.6";
 const CORE_ASSETS=["./","./index.html","./style.css","./game.js","./manifest.webmanifest","./icons/icon.svg","./icons/icon-maskable.svg"];
 self.addEventListener("install",event=>{
-  event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE_ASSETS)));
+  event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE_ASSETS.map(url=>new Request(url,{cache:"reload"})))));
   // Activate after existing game tabs close, so versions are not mixed mid-game.
 });
 self.addEventListener("activate",event=>{
@@ -18,4 +18,9 @@ self.addEventListener("fetch",event=>{
 });
 
 
+
+
+self.addEventListener("message",event=>{
+  if(event.data?.type==="ACTIVATE_UPDATE") event.waitUntil(self.skipWaiting());
+});
 
