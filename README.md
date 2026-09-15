@@ -1,4 +1,10 @@
-# BlockForge v1.0.1 — player-test patch
+# BlockForge v1.0.8
+
+Current release: grouped settings, reliable Holo ⭐ H signature, tetromino-only shape generation, explicit update controls and device-aware fullscreen guidance.
+
+> Deployment refresh: this commit intentionally republishes the complete v1.0.8 file set after the multi-file release.
+
+## Earlier v1.0.1 player-test patch
 
 ## 1.0.1 changes
 
