@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.5";
+const APP_VERSION = "1.0.6";
 
 const TETROMINOES = {
  I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],
@@ -2402,7 +2402,49 @@ async function requestPersistentStorage(){
   }catch{}
 }
 
+function setupUpdateControls(){
+ const status=$("#saveStatus");
+ const version=document.createElement("p");
+ version.id="appVersion";version.className="save-status";
+ version.textContent="BlockForge v"+APP_VERSION;
+ status.before(version);
+ const button=document.createElement("button");
+ button.type="button";button.className="wide-btn";button.textContent="CHECK FOR UPDATE";
+ status.after(button);
+ button.addEventListener("click",async()=>{
+   if(!("serviceWorker" in navigator)){showToast("Open the online game to update");return}
+   button.disabled=true;
+   try{
+     const registration=await navigator.serviceWorker.getRegistration();
+     if(!registration){showToast("Reload the online game to enable updates");return}
+     await registration.update();
+     if(registration.installing){
+       const worker=registration.installing;
+       await new Promise(resolve=>{
+         const timeout=setTimeout(resolve,15000);
+         worker.addEventListener("statechange",()=>{
+           if(["installed","redundant"].includes(worker.state)){clearTimeout(timeout);resolve()}
+         });
+       });
+     }
+     if(registration.waiting){
+       if(!window.confirm("Install update? Your level, coins and purchases will be saved. The current board will restart.")) return;
+       flushSave();
+       // Abort if storage could not retain this exact profile.
+       if(JSON.stringify(decodeSave(localStorage.getItem(SAVE_KEY)))!==JSON.stringify(profile)){
+         showToast("Export your save before updating");return;
+       }
+       navigator.serviceWorker.addEventListener("controllerchange",()=>location.reload(),{once:true});
+       registration.waiting.postMessage({type:"ACTIVATE_UPDATE"});
+     }else{
+       showToast(registration.installing?"Update is downloading — check again shortly":"Running v"+APP_VERSION+" — no update ready");
+     }
+   }catch{showToast("Could not check for updates. Try again online.")}
+   finally{button.disabled=false}
+ });
+}
 function setupRelease(){
+  setupUpdateControls();
   window.addEventListener("resize",cancelDrag);
   window.visualViewport?.addEventListener("resize",cancelDrag);
   const installButton=$("#installAppBtn");
@@ -2528,3 +2570,4 @@ function init(){
 }
 
 init();
+
