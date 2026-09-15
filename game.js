@@ -4,7 +4,7 @@ const SIZE = 8;
 const SAVE_KEY = "blockforge-v04-profile";
 const BACKUP_KEY = "blockforge-v1-backup";
 const SAVE_SCHEMA = 1;
-const APP_VERSION = "1.0.1";
+const APP_VERSION = "1.0.2";
 
 const BASE_SHAPES = [
   {id:"single",cells:[[0,0]],tier:1},
@@ -63,13 +63,21 @@ const PLAYER_TITLES = [
 ];
 
 const CAMPAIGN_LEVELS = Array.from({length:30},(_,index)=>{
-  const level=index+1;
-  if(level<=5) return {level,moves:16+level,score:260+level*120,lines:0,ice:0,locks:0};
-  if(level<=10) return {level,moves:21+Math.floor(level/2),score:500+level*75,lines:1+Math.floor((level-5)/2),ice:0,locks:0};
-  if(level<=15) return {level,moves:24+Math.floor((level-10)/2),score:650+level*70,lines:2,ice:3+(level-10),locks:0};
-  if(level<=20) return {level,moves:26+Math.floor((level-15)/2),score:800+level*65,lines:2+Math.floor((level-15)/2),ice:2,locks:2+(level-15)};
-  return {level,moves:29+Math.floor((level-20)/2),score:1100+level*70,lines:4+Math.floor((level-20)/3),ice:5+Math.floor((level-20)/2),locks:4+Math.floor((level-20)/2)};
+  const level=index+1,lines=3+Math.floor(index/3);
+  return {level,moves:24+Math.floor(index*.6),score:lines*200,
+    lines,multiclears:level<6?0:level<16?1:level<26?2:3,
+    ice:level<11?0:Math.min(8,2+Math.floor((level-11)/3)),
+    locks:level<16?0:Math.min(6,2+Math.floor((level-16)/3))};
 });
+const CAMPAIGN_SHAPES = [
+  {id:"elbow-up",cells:[[0,0],[1,0],[0,1],[0,2]],tier:2},
+  {id:"elbow-wide",cells:[[0,0],[1,0],[2,0],[2,1]],tier:2},
+  {id:"tee-up",cells:[[1,0],[0,1],[1,1],[2,1]],tier:2},
+  {id:"tee-right",cells:[[0,0],[0,1],[1,1],[0,2]],tier:2},
+  {id:"zig-v",cells:[[0,0],[0,1],[1,1],[1,2]],tier:2},
+  {id:"zag-h",cells:[[1,0],[2,0],[0,1],[1,1]],tier:2},
+  {id:"rectangle-6",cells:[[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]],tier:3}
+];
 
 const TUTORIAL_STEPS = [
   {icon:"▦",title:"PLACE BLOCKS",text:"Drag a shape onto the board. The highlighted cells show exactly where it will land."},
@@ -283,7 +291,7 @@ let activePower = null;
 let lastMoveSnapshot = null;
 let currentCampaignLevel = 1;
 let movesRemaining = 0;
-let levelProgress = {lines:0,ice:0,locks:0};
+let levelProgress = {lines:0,ice:0,locks:0,multiclears:0};
 let iceCells = Array(SIZE*SIZE).fill(false);
 let lockedCells = Array(SIZE*SIZE).fill(false);
 let tutorialStep = 0;
@@ -429,7 +437,7 @@ function dimensions(shape){
 }
 
 function allShapes(){
-  const shapes = [...BASE_SHAPES];
+  const shapes = [...BASE_SHAPES,...(currentMode==="level"?CAMPAIGN_SHAPES:[])];
   profile.activePacks.filter(pack=>profile.owned.packs.includes(pack)).forEach(pack=>{
     if(PACK_SHAPES[pack]) shapes.push(...PACK_SHAPES[pack]);
   });
@@ -456,7 +464,8 @@ function canFit(shape){
 function weightedShape(candidates,fullness){
   let wantedTier;
   const roll=Math.random();
-  if(fullness>.68) wantedTier=roll<.68?1:(roll<.93?2:3);
+  if(currentMode==="level") wantedTier=roll<(fullness>.75?.3:.1)?1:roll<.72?2:3;
+  else if(fullness>.68) wantedTier=roll<.68?1:(roll<.93?2:3);
   else if(fullness>.42) wantedTier=roll<.38?1:(roll<.82?2:3);
   else wantedTier=roll<.18?1:(roll<.67?2:(roll<.94?3:4));
   const preferred=candidates.filter(s=>s.tier===wantedTier);
@@ -473,17 +482,24 @@ function generateTray(){
   for(let i=0;i<3;i++){
     let pool=shapes.filter(s=>!picked.some(p=>p.id===s.id));
     if(!pool.length) pool=shapes;
+    if(currentMode==="level"&&picked.some(shape=>shape.cells.length<3)){
+      const larger=pool.filter(shape=>shape.cells.length>=3);
+      if(larger.length) pool=larger;
+    }
     if(i===0 || fullness>.58){
       const safe=pool.filter(canFit);
       if(safe.length) pool=safe;
     }
     picked.push(weightedShape(pool,fullness));
   }
-  const specialChance=Math.min(.24,.105+profile.level*.009);
+  const specialChance=currentMode==="level"?.08:Math.min(.24,.105+profile.level*.009);
   if(Math.random()<specialChance){
-    const unlockedSpecials=SPECIAL_SHAPES.filter(shape=>profile.level>=SPECIAL_UNLOCKS[shape.special]);
+    const unlockedSpecials=SPECIAL_SHAPES.filter(shape=>currentMode==="level"
+      ?(shape.special==="bomb"||(currentCampaignLevel>=6&&shape.special.startsWith("laser")))
+      :profile.level>=SPECIAL_UNLOCKS[shape.special]);
     const special=unlockedSpecials[Math.floor(Math.random()*unlockedSpecials.length)];
-    picked[Math.floor(Math.random()*picked.length)]=special;
+    const smallIndex=currentMode==="level"?picked.findIndex(shape=>shape.cells.length<3):-1;
+    picked[smallIndex>=0?smallIndex:Math.floor(Math.random()*picked.length)]=special;
   }
   tray=picked.map((shape,index)=>({uid:Date.now()+"-"+index+"-"+Math.random(),shape,used:false}));
   renderTray(true);
@@ -522,7 +538,10 @@ function renderTray(fresh=false){
     if(!entry.used){
       const block=shapeElement(entry.shape);
       block.dataset.uid=entry.uid;
-      block.addEventListener("pointerdown",event=>beginDrag(event,entry,block));
+      slot.addEventListener("pointerdown",event=>beginDrag(event,entry,block));
+      slot.addEventListener("lostpointercapture",event=>{
+        if(activeDrag?.pointerId===event.pointerId&&activeDrag.capture===slot) cancelDrag();
+      });
       slot.appendChild(block);
     }
     trayEl.appendChild(slot);
@@ -531,23 +550,25 @@ function renderTray(fresh=false){
 
 function beginDrag(event,entry,source){
   if(activeDrag||busy||gameOver||paused||entry.used||isBlockingOverlayOpen()) return;
+  if(event.pointerType==="mouse"&&event.button!==0) return;
   event.preventDefault();
-  unlockAudio();
-  playSfx("pickup");
+  try{unlockAudio();playSfx("pickup")}catch(error){console.warn("Audio unavailable",error)}
   if(profile.vibration&&navigator.vibrate) navigator.vibrate(9);
   const ghost=createGhost(entry.shape);
   const grab=findGrabbedCell(event,source,entry.shape);
+  source.parentElement.classList.remove("entering");
   document.body.appendChild(ghost);
   source.classList.add("picked");
   activeDrag={
-    entry,source,ghost,pointerId:event.pointerId,pointerType:event.pointerType,
+    entry,source,ghost,capture:source.parentElement,pointerId:event.pointerId,pointerType:event.pointerType,
     grabX:grab[0],grabY:grab[1],row:-99,col:-99,valid:false,
     metrics:getBoardMetrics(),lastPreviewKey:""
   };
+  try{activeDrag.capture.setPointerCapture(event.pointerId)}catch{}
   document.addEventListener("pointermove",moveDrag,{passive:false});
   document.addEventListener("pointerup",endDrag);
   document.addEventListener("pointercancel",endDrag);
-  moveDrag(event);
+  applyDragPosition(event);
 }
 
 function createGhost(shape){
@@ -670,8 +691,23 @@ function clearPreview(){
   previewIndexes=[];
 }
 
+function cancelDrag(){
+  if(!activeDrag) return;
+  const drag=activeDrag;
+  activeDrag=null;
+  if(dragFrame!==null) cancelAnimationFrame(dragFrame);
+  dragFrame=null;pendingDragPoint=null;
+  document.removeEventListener("pointermove",moveDrag);
+  document.removeEventListener("pointerup",endDrag);
+  document.removeEventListener("pointercancel",endDrag);
+  drag.source.classList.remove("picked");
+  drag.ghost.remove();
+  try{if(drag.capture.hasPointerCapture(drag.pointerId)) drag.capture.releasePointerCapture(drag.pointerId)}catch{}
+  clearPreview();
+}
 function endDrag(event){
   if(!activeDrag||event.pointerId!==activeDrag.pointerId) return;
+  if(event.type==="pointercancel"){cancelDrag();return}
   if(event.pointerId===activeDrag.pointerId){
     if(dragFrame!==null){
       cancelAnimationFrame(dragFrame);
@@ -685,6 +721,7 @@ function endDrag(event){
   }
   const drag=activeDrag;
   activeDrag=null;
+  try{if(drag.capture.hasPointerCapture(drag.pointerId)) drag.capture.releasePointerCapture(drag.pointerId)}catch{}
   document.removeEventListener("pointermove",moveDrag);
   document.removeEventListener("pointerup",endDrag);
   document.removeEventListener("pointercancel",endDrag);
@@ -787,7 +824,10 @@ function clearLines(lines){
   setTimeout(()=>{
     clearCampaignTerrain(unique);
     unique.forEach(i=>grid[i]=false);
-    if(currentMode==="level") levelProgress.lines+=lineCount;
+    if(currentMode==="level"){
+      levelProgress.lines+=lineCount;
+      if(lineCount>=2) levelProgress.multiclears++;
+    }
     score+=bonus;
     profile.coins+=earned;
     commitBest();
@@ -1522,7 +1562,7 @@ function setupCampaignBoard(){
   const config=CAMPAIGN_LEVELS[currentCampaignLevel-1];
   if(!config) return;
   movesRemaining=config.moves;
-  levelProgress={lines:0,ice:0,locks:0};
+  levelProgress={lines:0,ice:0,locks:0,multiclears:0};
   const indexes=seededCampaignIndexes(currentCampaignLevel,config.locks+config.ice);
   indexes.slice(0,config.locks).forEach(index=>{
     lockedCells[index]=true;
@@ -1552,6 +1592,7 @@ function campaignObjectiveParts(){
   if(!config) return [];
   const parts=[score.toLocaleString()+"/"+config.score.toLocaleString()+" score"];
   if(config.lines) parts.push(levelProgress.lines+"/"+config.lines+" lines");
+  if(config.multiclears) parts.push(levelProgress.multiclears+"/"+config.multiclears+" double clears");
   if(config.ice) parts.push(levelProgress.ice+"/"+config.ice+" ice");
   if(config.locks) parts.push(levelProgress.locks+"/"+config.locks+" locks");
   return parts;
@@ -1562,6 +1603,7 @@ function campaignObjectivesMet(){
   if(!config) return false;
   return score>=config.score&&
     levelProgress.lines>=config.lines&&
+    levelProgress.multiclears>=config.multiclears&&
     levelProgress.ice>=config.ice&&
     levelProgress.locks>=config.locks;
 }
@@ -1637,7 +1679,7 @@ function renderLevelSelect(){
     button.className="campaign-level"+(unlocked?" unlocked":" locked")+(stars?" completed":"");
     button.disabled=!unlocked;
     button.dataset.level=config.level;
-    button.innerHTML=`<strong>${unlocked?config.level:"🔒"}</strong><span>${[1,2,3].map(value=>value<=stars?"★":"☆").join("")}</span><small>${config.moves} MOVES</small>`;
+    button.innerHTML=`<strong>${unlocked?config.level:"🔒"}</strong><span>${[1,2,3].map(value=>value<=stars?"★":"☆").join("")}</span><small>${config.moves} MOVES · ${config.lines} LINES</small>${config.multiclears?`<small>${config.multiclears} DOUBLE CLEAR</small>`:""}`;
     gridEl.appendChild(button);
   });
   $("#totalCampaignStars").textContent=total;
@@ -1777,7 +1819,7 @@ function restartGame(){
   grid=Array(SIZE*SIZE).fill(false);
   iceCells=Array(SIZE*SIZE).fill(false);
   lockedCells=Array(SIZE*SIZE).fill(false);
-  levelProgress={lines:0,ice:0,locks:0};
+  levelProgress={lines:0,ice:0,locks:0,multiclears:0};
   tray=[];
   score=0;
   combo=0;
@@ -1882,6 +1924,7 @@ function startMode(mode){
 }
 
 function pauseGame(){
+  cancelDrag();
   if(!currentMode||gameOver||paused) return;
   paused=true;
   document.body.classList.add("game-paused");
@@ -2333,6 +2376,8 @@ async function requestPersistentStorage(){
 }
 
 function setupRelease(){
+  window.addEventListener("resize",cancelDrag);
+  window.visualViewport?.addEventListener("resize",cancelDrag);
   const installButton=$("#installAppBtn");
   const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
   if(isiOS&&!isStandalone()) installButton.hidden=false;
@@ -2452,17 +2497,7 @@ function init(){
     if(document.hidden&&currentMode&&!gameOver&&!paused) pauseGame();
     lastTimerTick=performance.now();
   });
-  window.addEventListener("blur",()=>{
-    if(activeDrag){
-      activeDrag.ghost.remove();
-      activeDrag.source.classList.remove("picked");
-      activeDrag=null;
-      if(dragFrame!==null) cancelAnimationFrame(dragFrame);
-      dragFrame=null;
-      pendingDragPoint=null;
-      clearPreview();
-    }
-  });
+  window.addEventListener("blur",cancelDrag);
 }
 
 init();
